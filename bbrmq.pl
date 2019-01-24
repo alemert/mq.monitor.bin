@@ -91,7 +91,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.05.04" ;
+my $VERSION = "2.05.05" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2814,6 +2814,7 @@ sub printMsg
   logger();
 
   my %xymMsg ;
+  my %mailMsg ;
 
   my %anchor ;
 
@@ -2874,17 +2875,25 @@ sub printMsg
             $xymMsg{$host}{$srv}{level}=$lev if $lev>$xymMsg{$host}{$srv}{level};
           }                                               #
         }                                                 #
+
         if( exists $_app->{$app}{qmgr}{$qmgr}             #
                           {type}{$type}{send}{mail} )     #
         {                                                 #
-          my ($xymMsg,$lev) = &mailMsg( $app    ,        #
-                                        $qmgr   ,        #
-                                        $type   ,        #
-                                        $_glb   ,        #
-                                        $_stat->{$app}); # 
+          my ($mailErr,$mailBody,$mailSub)=&mailMsg($qmgr   ,
+                                                    $type   ,        
+                                                    $_glb   ,       
+                                                    $_stat->{$app}); 
+          if( $mailErr > 0 )
+          {
+            $mailMsg{$qmgr}{$type}{body} = $mailBody; 
+            $mailMsg{$qmgr}{$type}{subject} = $mailSub; 
+            $mailMsg{$qmgr}{$type}{address} = $_app->{$app}{qmgr}{$qmgr}{type}{$type}{send}{mail}{address} ;
+            $mailMsg{$qmgr}{$type}{appl} = $app ;
+          }
         }
       }                                                   #
     }                                                     #
+
     foreach my $host (keys %xymMsg)                       #
     {                                                     #
       foreach my $srv (keys %{$xymMsg{$host}})            #
@@ -2910,6 +2919,17 @@ sub printMsg
       writeMsg $msg, $color, $host, $service ;            #
     }                                                     #
   }                                                       #
+
+  foreach my $qmgr ( keys %mailMsg )
+  {
+    foreach my $type ( keys %{$mailMsg{$qmgr}} )
+    {
+      &sendMail( $mailMsg{$qmgr}{$type}{body}    ,
+                 $mailMsg{$qmgr}{$type}{subject} ,
+                 $mailMsg{$qmgr}{$type}{address} ,
+                 $mailMsg{$qmgr}{$type}{appl} );
+    } 
+  }
 }
 
 ################################################################################
@@ -3050,24 +3070,67 @@ sub xymonMsg
 ################################################################################
 sub mailMsg
 {
-  my $appl    = $_[0] ;
-  my $qmgr    = $_[1] ;
-  my $type    = $_[2] ;
-  my $_glb    = $_[3] ;
-  my $_stat   = $_[4] ;
+# my $appl    = $_[0] ;
+  my $qmgr    = $_[0] ;
+  my $type    = $_[1] ;
+  my $_glb    = $_[2] ;
+  my $_stat   = $_[3] ;
 
   logger();
+  my $report ;
+  my $msg;
+  my $globErr = 0 ;
   foreach my $obj ( sort keys %{$_stat->{$qmgr}{$type}} )
   {
     foreach my $_objInst (@{$_stat->{$qmgr}{$type}{$obj}})
     {
-      my $line ;
+      my @line = ($obj) ;
+      my $objErr=0; 
       foreach my $attr ( sort keys %{$_glb->{type}{$type}{attr}} )
       {
-        next ;
+        push @line, $_objInst->{attr}{$attr}{value} ;
+        next unless exists $_objInst->{attr}{$attr}{level} ;
+        if( $_objInst->{attr}{$attr}{level} == $ERR )
+        {
+          $globErr++;
+          $objErr++;
+          my $th;
+          foreach my $key ( keys %{$_objInst->{attr}{$attr}{monitor}} )
+          {
+            if( $_objInst->{attr}{$attr}{monitor}{$key} eq 'err' )
+            {
+              $th = $key ;
+              last;
+            }
+          }
+          $report .= "$obj $attr $_objInst->{attr}{$attr}{value} $th -> err\n" ;
+        }
       }
+  # future feature : formline
+  #   if( $objErr > 0 )
+  #   {
+  #     
+  #   }
     }
   }
+  my $subject ;
+  if( $globErr > 0 )
+  {
+    $subject = "Error on $qmgr for $type"; 
+  }
+  return ($globErr,$report,$subject);
+}
+
+################################################################################
+#
+################################################################################
+sub sendMail
+{
+  my $body    = $_[0] ;
+  my $subject = $_[1] ;
+  my $address = $_[2] ;
+
+  
 }
 
 ################################################################################
