@@ -67,6 +67,7 @@
 #                    reset command displayed
 # 23.01.2019 2.05.05 rename $msg / %msg in printMsg to $xymMsg / %xymMsg
 # 31.01.2019 2.06.00 send mail activated
+# 31.01.2019 2.06.01 send mail debugging text to stdout deleted
 ################################################################################
 
 use strict ;
@@ -92,7 +93,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.06.00" ;
+my $VERSION = "2.06.01" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -3168,8 +3169,6 @@ sub sendMail
       $fLine =~ /^(\S+)\s+(\S+)\s+/ ;
       my $fObj = $1;
       my $fAttr = $2 ;
-  
-      print " $fObj $bObj $fAttr $bAttr\n" ;
   
       unless( $fObj eq $bObj &&
               $fAttr eq $bAttr )
