@@ -65,7 +65,8 @@
 #                    from any level of the tree
 # 08.12.2018 2.05.04 persistent ingore for combined attributes implemanted
 #                    reset command displayed
-# 23.01.2018 2.05.05 rename $msg / %msg in printMsg to $xymMsg / %xymMsg
+# 23.01.2019 2.05.05 rename $msg / %msg in printMsg to $xymMsg / %xymMsg
+# 31.01.2019 2.06.00 send mail activated
 ################################################################################
 
 use strict ;
@@ -91,7 +92,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.05.05" ;
+my $VERSION = "2.06.00" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2927,7 +2928,8 @@ sub printMsg
       &sendMail( $mailMsg{$qmgr}{$type}{body}    ,
                  $mailMsg{$qmgr}{$type}{subject} ,
                  $mailMsg{$qmgr}{$type}{address} ,
-                 $mailMsg{$qmgr}{$type}{appl} );
+                 $mailMsg{$qmgr}{$type}{appl}    ,
+                 $qmgr, $type );
     } 
   }
 }
@@ -3129,8 +3131,84 @@ sub sendMail
   my $body    = $_[0] ;
   my $subject = $_[1] ;
   my $address = $_[2] ;
+  my $appl    = $_[3] ;
+  my $qmgr    = $_[4];
+  my $type    = $_[5];
 
+  # tests to be done
+  # 24 h test
+  # mail & file diffrent in 2nd line
+  # mail longer than file
+  # mail shorter than file
+  # mail empty but file exists
+
+  my $file = "$TMP/mail-$appl-$qmgr-$type" ;
+  my @body = split "\n", $body;
+
+  if( scalar @body == 0 )
+  {
+    unlink $file ;
+    return ;
+  }
+ 
+  if( open TMP, $file )
+  {
+    foreach my $bLine (@body)
+    {
+      $bLine =~ /^(\S+)\s+(\S+)\s+/ ;
+      my $bObj = $1;
+      my $bAttr = $2 ;
   
+      my $fLine = <TMP> ;
+      unless( defined $fLine )
+      {
+        unlink $file ;
+        last ;
+      }
+      $fLine =~ /^(\S+)\s+(\S+)\s+/ ;
+      my $fObj = $1;
+      my $fAttr = $2 ;
+  
+      print " $fObj $bObj $fAttr $bAttr\n" ;
+  
+      unless( $fObj eq $bObj &&
+              $fAttr eq $bAttr )
+      {
+        unlink $file ;
+        last ;
+      }
+  
+      next ;
+    }
+    close TMP;
+  }
+ 
+  my $mTime = (stat $file)[9] ;
+  my $sysTime = time();
+  if( defined $mTime )
+  {
+    if( ($sysTime - $mTime )  > 3600*24 )
+    {
+      unlink $file ;
+    }
+    else
+    {
+      return ;
+    }
+  }
+ 
+  open MAIL, "|mailx -s \"$subject\" $address" ; 
+  open TMP, ">$file" ;
+  foreach my $line (@body)
+  {
+    print MAIL "$line\n\n";
+    print TMP  "$line\n";
+  }
+  close MAIL ;
+  close TMP ;
+
+
+ 
 }
 
 ################################################################################
