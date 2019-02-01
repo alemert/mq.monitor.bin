@@ -68,6 +68,9 @@
 # 23.01.2019 2.05.05 rename $msg / %msg in printMsg to $xymMsg / %xymMsg
 # 31.01.2019 2.06.00 send mail activated
 # 31.01.2019 2.06.01 send mail debugging text to stdout deleted
+# 01.02.2019 2.06.02 imaginary type QLOUT added, can be used to re-route xymon 
+#                    messages for QL to SYS-MQ view
+#                    keep tag added to ini file to provide QLOUT
 ################################################################################
 
 use strict ;
@@ -93,7 +96,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.06.01" ;
+my $VERSION = "2.06.02" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -1188,19 +1191,6 @@ sub expandHash
             }
             $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{$item} = $_typeApp->{$type}{$item} ;
           }
-        #   if( exists $_typeApp->{$type}{exclude} &&
-        #      !exists $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{exclude} )
-        #   {
-        #     $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{exclude} =
-        #        $_typeApp->{$type}{exclude} ;
-        #   }
-        #   if( exists $_typeApp->{$type}{parse} &&
-        #      !exists $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{parse} )
-        #   {
-        #     $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{parse} =
-        #        $_typeApp->{$type}{parse} ;
-        #   }
-        # }
         }
       }
     }
@@ -1558,6 +1548,16 @@ sub getObjState
             }
           }
         }
+        if( exists $_type->{$type}{keep} )
+        {
+          foreach my $keep (@{$_type->{$type}{keep}} )
+          {
+            foreach my $obj (keys $_state->{$app}{$qmgr}{$type})
+            {
+              delete $_state->{$app}{$qmgr}{$type}{$obj} unless $obj =~ /$keep/ ;
+            }
+          }
+        }
       }
     }
   }
@@ -1627,9 +1627,11 @@ sub execMqsc
 
   my $_obj ;
   # --------------------------------------------------------
-  # QL & DLQ
+  # QL & DLQ & QLOUT
+  #    QLOUT can be redirected to SYS-MQ view
   # --------------------------------------------------------
   if( $type eq 'QLOCAL' ||
+      $type eq 'QLOUT'  ||
       $type eq 'DLQ'     )
   {
     my $_ql = disQl( $rd, $wr, $obj, $os );
