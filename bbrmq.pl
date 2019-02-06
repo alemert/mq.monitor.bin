@@ -71,6 +71,9 @@
 # 01.02.2019 2.06.02 imaginary type QLOUT added, can be used to re-route xymon 
 #                    messages for QL to SYS-MQ view
 #                    keep tag added to ini file to provide QLOUT
+# -- -- -- 2.07.00   no execMqsc if send tag is missing (why to calculate 
+#                    if nothing to send)
+#                    handling CSQM297I message
 ################################################################################
 
 use strict ;
@@ -1459,6 +1462,10 @@ sub cfg2conn
                                       $_cfg->{$qmgr}{proxy}.
                                       ' '.$qmgr ;
     }
+    elsif( $_cfg->{$qmgr}{type} eq 'zos' ) 
+    {
+      $_conn->{$qmgr}{RUN} = $runmqsc.' -w 10 -x '.$qmgr ;
+    }
     elsif( $_cfg->{$qmgr}{type} eq 'direct' ) 
     {
       $_conn->{$qmgr}{RUN} = $runmqsc.' '.$qmgr ;
@@ -1505,6 +1512,7 @@ sub getObjState
       foreach my $type (keys %{$_type})
       {
         next if $type eq 'CONNECTION' ;
+        next unless exists $_type->{$type}{send} ;
         next unless exists $_type->{$type}{parse} ;
         next unless ref $_type->{$type}{parse} eq 'ARRAY';
         foreach my $parse (@{$_type->{$type}{parse}} )
@@ -1662,7 +1670,11 @@ sub execMqsc
   # --------------------------------------------------------
   # SDR
   # --------------------------------------------------------
-  elsif( $type eq 'SDR' )
+  elsif( $type eq 'SDR'   ||
+         $type eq 'SVR'   ||
+         $type eq 'RCVR'  ||
+         $type eq 'RQSTR' ||
+         $type eq 'SVRCONN' )
   {
     my $_chl = disChl( $rd, $wr, $type, $obj, $os );
     return $_chl unless defined $_chl ;
@@ -1671,32 +1683,32 @@ sub execMqsc
 
      $_obj = &joinChStat($_chl, $_chs );
   }
-  # --------------------------------------------------------
-  # SVR
-  # rename sub disSdr() to disChl
-  #  add Type to attr of disChl
-  # --------------------------------------------------------
-  elsif( $type eq 'SVR' )
-  {
-    my $_chl = disChl( $rd, $wr, $type, $obj, $os );
-    return $_chl unless defined $_chl ;
+# # --------------------------------------------------------
+# # SVR
+# # rename sub disSdr() to disChl
+# #  add Type to attr of disChl
+# # --------------------------------------------------------
+# elsif( $type eq 'SVR' )
+# {
+#   my $_chl = disChl( $rd, $wr, $type, $obj, $os );
+#   return $_chl unless defined $_chl ;
 
-    my $_chs = disChs(  $rd, $wr, $type, $obj, $os );
+#   my $_chs = disChs(  $rd, $wr, $type, $obj, $os );
 
-     $_obj = &joinChStat($_chl, $_chs );
-  }
-  # --------------------------------------------------------
-  # CLIENT
-  # --------------------------------------------------------
-  elsif( $type eq 'SVRCONN' )
-  {
-    my $_chl = disChl( $rd, $wr, $type, $obj, $os );
-    return $_chl unless defined $_chl ;
+#    $_obj = &joinChStat($_chl, $_chs );
+# }
+# # --------------------------------------------------------
+# # CLIENT
+# # --------------------------------------------------------
+# elsif( $type eq 'SVRCONN' )
+# {
+#   my $_chl = disChl( $rd, $wr, $type, $obj, $os );
+#   return $_chl unless defined $_chl ;
 
-    my $_chs = disChs(  $rd, $wr, $type, $obj, $os );
+#   my $_chs = disChs(  $rd, $wr, $type, $obj, $os );
 
-     $_obj = &joinChStat($_chl, $_chs );
-  }
+#    $_obj = &joinChStat($_chl, $_chs );
+# }
 
   return $_obj ;    # other object types can be added
 }
@@ -1785,7 +1797,6 @@ sub parseMqsc
       }                                  #
       last         if $amq eq 'AMQ8415'; # Ping Queue Manager command complete.
       die $line    if $amq eq 'AMQ8569'; # Error in filter specification
-      die $line    if $amq eq 'AMQ8147'; # WebSphere MQ object %s not found.
       if( $amq eq 'AMQ8147')             # WebSphere MQ object %s not found.
       {                                  #
         warn "$line\n" ;                 #
@@ -1823,9 +1834,14 @@ sub parseMqsc
     {                                    #
       next if $line =~ /^CSQN205I\s*/;   # command processor return code
                                          # first line for ZOS
-      if( $line =~ /^CSQ9\d{3}\w\s+/ )   # error handling missing
+      if( $line =~ /^CSQ.\d{3}\w\s+/ )   # error handling missing
       {                                  # for messages  beside CSQ9022I 
         last if $line =~ /^CSQ9022I\s+/; # NORMAL COMPLETION
+        if( $line =~ /CSQM297I\s+/ )
+        {
+          warn "$line\n" ;
+          next ;
+        }
         last ;                           #
       }                                  #
     }                                    #
