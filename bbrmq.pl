@@ -71,9 +71,11 @@
 # 01.02.2019 2.06.02 imaginary type QLOUT added, can be used to re-route xymon 
 #                    messages for QL to SYS-MQ view
 #                    keep tag added to ini file to provide QLOUT
-# -- -- -- 2.07.00   no execMqsc if send tag is missing (why to calculate 
+# 05.02.2019 2.07.00 no execMqsc if send tag is missing (why to calculate 
 #                    if nothing to send)
 #                    handling CSQM297I message
+# 05.02.2019 2.07.01 code cleanup dis obj
+#                    new obj type mqSVRCONN equals SVRCONN to duplicate service
 ################################################################################
 
 use strict ;
@@ -1673,8 +1675,7 @@ sub execMqsc
   elsif( $type eq 'SDR'   ||
          $type eq 'SVR'   ||
          $type eq 'RCVR'  ||
-         $type eq 'RQSTR' ||
-         $type eq 'SVRCONN' )
+         $type eq 'RQSTR' )
   {
     my $_chl = disChl( $rd, $wr, $type, $obj, $os );
     return $_chl unless defined $_chl ;
@@ -1683,32 +1684,18 @@ sub execMqsc
 
      $_obj = &joinChStat($_chl, $_chs );
   }
-# # --------------------------------------------------------
-# # SVR
-# # rename sub disSdr() to disChl
-# #  add Type to attr of disChl
-# # --------------------------------------------------------
-# elsif( $type eq 'SVR' )
-# {
-#   my $_chl = disChl( $rd, $wr, $type, $obj, $os );
-#   return $_chl unless defined $_chl ;
+  # --------------------------------------------------------
+  # CLIENT
+  # --------------------------------------------------------
+  elsif( $type =~ 'SVRCONN' )
+  {
+    my $_chl = disChl( $rd, $wr, 'SVRCONN', $obj, $os );
+    return $_chl unless defined $_chl ;
 
-#   my $_chs = disChs(  $rd, $wr, $type, $obj, $os );
+    my $_chs = disChs(  $rd, $wr, 'SVRCONN', $obj, $os );
 
-#    $_obj = &joinChStat($_chl, $_chs );
-# }
-# # --------------------------------------------------------
-# # CLIENT
-# # --------------------------------------------------------
-# elsif( $type eq 'SVRCONN' )
-# {
-#   my $_chl = disChl( $rd, $wr, $type, $obj, $os );
-#   return $_chl unless defined $_chl ;
-
-#   my $_chs = disChs(  $rd, $wr, $type, $obj, $os );
-
-#    $_obj = &joinChStat($_chl, $_chs );
-# }
+     $_obj = &joinChStat($_chl, $_chs );
+  }
 
   return $_obj ;    # other object types can be added
 }
@@ -1750,7 +1737,7 @@ sub joinChStat
 
   foreach my $c (keys %$_chl)
   {
-    $_inactive->{CURSHCNV} = 0  if @{$_chl->{$c}}[0]->{CHLTYPE} eq 'SVRCONN';
+    $_inactive->{CURSHCNV} = 0  if @{$_chl->{$c}}[0]->{CHLTYPE} =~ /SVRCONN/; # handle SVRCONN and mqSVRCONN
     unless( exists $_chs->{$c})
     {
       push @{$_chs->{$c}}, $_inactive ;
@@ -1820,7 +1807,7 @@ sub parseMqsc
     # new object found
     # ------------------------------------------------------
     if( $line =~ s/^CSQM4\d{2}I\s+       # object or status type message
-                    (\w+)\s+//x    )     # queue manager name
+                    (.+?)\s+//x    )     # queue manager name or plus
     #   $line =~ /(AMQ\d{4}):/         ) # AMQ message missing for Unix 
     {                                    #
       $obj = undef;                      #
@@ -1837,7 +1824,7 @@ sub parseMqsc
       if( $line =~ /^CSQ.\d{3}\w\s+/ )   # error handling missing
       {                                  # for messages  beside CSQ9022I 
         last if $line =~ /^CSQ9022I\s+/; # NORMAL COMPLETION
-        if( $line =~ /CSQM297I\s+/ )
+        if( $line =~ /CSQM297I\s+/ )     # no items found matching request
         {
           warn "$line\n" ;
           next ;
