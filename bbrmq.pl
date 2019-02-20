@@ -76,6 +76,7 @@
 #                    handling CSQM297I message
 # 05.02.2019 2.07.01 code cleanup dis obj
 #                    new obj type mqSVRCONN equals SVRCONN to duplicate service
+# 20.02.2019 2.07.02 rename QLOUT to mqQLOCAL
 ################################################################################
 
 use strict ;
@@ -101,7 +102,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.06.02" ;
+my $VERSION = "2.07.02" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -1640,9 +1641,9 @@ sub execMqsc
   # QL & DLQ & QLOUT
   #    QLOUT can be redirected to SYS-MQ view
   # --------------------------------------------------------
-  if( $type eq 'QLOCAL' ||
-      $type eq 'QLOUT'  ||
-      $type eq 'DLQ'     )
+  if( $type eq 'QLOCAL'   ||
+      $type eq 'mqQLOCAL' ||
+      $type eq 'DLQ'       )
   {
     my $_ql = disQl( $rd, $wr, $obj, $os );
     return $_ql unless defined $_ql;
