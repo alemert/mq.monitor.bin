@@ -77,6 +77,7 @@
 # 05.02.2019 2.07.01 code cleanup dis obj
 #                    new obj type mqSVRCONN equals SVRCONN to duplicate service
 # 20.02.2019 2.07.02 rename QLOUT to mqQLOCAL
+# 15.03.2019 2.07.03 temporary ignore for comb state bug in evalStat solved
 ################################################################################
 
 use strict ;
@@ -102,7 +103,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.07.02" ;
+my $VERSION = "2.07.03" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2072,7 +2073,16 @@ sub evalStat
                 }                                    #
                 $_stObj->{attr}{$cmb}{value} =~ s/\+$//;
                 $_stObj->{attr}{$cmb}{ignore} = $IGN if $combIgn > 0 ;
-                                                     #
+              
+                if( exists $_ign->{$app}               &&
+                    exists $_ign->{$app}{$qmgr}        &&
+                    exists $_ign->{$app}{$qmgr}{$type} &&
+                    exists $_ign->{$app}{$qmgr}{$type}{$obj} &&
+                    exists $_ign->{$app}{$qmgr}{$type}{$obj}{$cmb} ) 
+                {
+                  $_stObj->{attr}{$cmb}{ignore} = $TIG ;
+                }
+                                       #
                 if( $matchCnt == scalar keys %{$_cmb->{$cmb}{match}} )
                 {                                    #
                   my $lev = &lev2id( $_cmb->{$cmb}{result} );
