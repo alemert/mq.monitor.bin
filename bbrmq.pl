@@ -77,7 +77,7 @@
 # 05.02.2019 2.07.01 code cleanup dis obj
 #                    new obj type mqSVRCONN equals SVRCONN to duplicate service
 # 20.02.2019 2.07.02 rename QLOUT to mqQLOCAL
-# 15.03.2019 2.07.03 temporary ignore for comb state bug in evalStat solved
+# 19.03.2019 2.07.03 temporary ignore for comb state bug in evalStat solved
 ################################################################################
 
 use strict ;
@@ -2055,6 +2055,7 @@ sub evalStat
                 $_stObj->{attr}{$cmb}{level} = $OK;  # assume level OK
                 my $matchCnt = 0;                    #
                 my $combIgn = 0;                     #
+                my $ignRc ;
                                                      # go through all attributes
                 foreach my $attr (keys %{$_cmb->{$cmb}{match}} )
                 {                                    # 
@@ -2073,22 +2074,27 @@ sub evalStat
                 }                                    #
                 $_stObj->{attr}{$cmb}{value} =~ s/\+$//;
                 $_stObj->{attr}{$cmb}{ignore} = $IGN if $combIgn > 0 ;
-              
-                if( exists $_ign->{$app}               &&
-                    exists $_ign->{$app}{$qmgr}        &&
-                    exists $_ign->{$app}{$qmgr}{$type} &&
+                                                     # 
+                if( exists $_ign->{$app}            &&
+                    exists $_ign->{$app}{$qmgr}     &&
+                    exists $_ign->{$app}{$qmgr}{$type}       &&
                     exists $_ign->{$app}{$qmgr}{$type}{$obj} &&
                     exists $_ign->{$app}{$qmgr}{$type}{$obj}{$cmb} ) 
-                {
+                {                                    #
                   $_stObj->{attr}{$cmb}{ignore} = $TIG ;
-                }
-                                       #
+                  $ignRc = $TIG ;
+                }                                    #
+                                                     #
                 if( $matchCnt == scalar keys %{$_cmb->{$cmb}{match}} )
                 {                                    #
                   my $lev = &lev2id( $_cmb->{$cmb}{result} );
                   $_stObj->{attr}{$cmb}{level}=$lev; #
-                  $ign++ if $lev == $IGN;            #
-                  $tig++ if $lev == $TIG;            #
+                  if( defined $ignRc )
+                  { 
+                    $tig++ if $lev == $TIG;            #
+                    $ign++ if $lev == $IGN;            #
+                    next ;
+                  }
                   $war++ if $lev == $WAR;            #
                   $err++ if $lev == $ERR;            #
                 }                                    #
