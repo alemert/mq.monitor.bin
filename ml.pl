@@ -277,12 +277,14 @@ sub setAmqLevel
 {
   my $_amq = $_[0]; 
   my $_ign = $_[1]; 
+  my $_qmgrIgn = $_[2] ;
 
   foreach my $i ( keys %$_amq )
   {
     my $amq = $_amq->{$i}{ID} ;
     my $lev = 'NA' ;
     $lev = $_ign->{$amq}{LEV} if exists $_ign->{$amq} ;
+    $lev = $_qmgrIgn->{$amq}{LEV} if (defined $_qmgrIgn && exists $_qmgrIgn->{$amq} && exists $_qmgrIgn->{$amq}{LEV} )  ;
     $_amq->{$i}{LEV} = $lev ;
   }
 }
@@ -395,6 +397,22 @@ sub checkFileAge
   return $sysTime-$fileTime;
 }
 
+sub getLocalIgn
+{
+  my $_ini ;
+  foreach my $ini ( glob "/home/mqm/monitor/ini/amq.*.ini" )
+  {
+    my ($qmgr) = ($ini =~ /^.+\/amq\.(\w+)\.ini$/ ); 
+    next if $qmgr eq 'global' ;
+    print "$qmgr\t$ini\n" ;
+    our %ign ;
+    require $ini ;
+    $_ini->{$qmgr} = \%ign ; 
+    next ;
+  }
+  return $_ini ;
+}
+
 ################################################################################
 #
 #   M A I N  
@@ -411,6 +429,8 @@ if( $qmgr[0] eq 'all' )
   }
 }
 
+ my $_locIgn = getLocalIgn ;
+
 foreach my $qmgr (@qmgr)
 {
   my $amqdir = $errdir.$qmgr ;
@@ -423,21 +443,24 @@ foreach my $qmgr (@qmgr)
   }
   
   cutResetAmqMsg $_amq, $qmgr ;
-  setAmqLevel $_amq, \%IGN ; 
+  my $_qmgrIgn = $_locIgn->{$qmgr} if exists $_locIgn->{$qmgr} ;
+  setAmqLevel $_amq, \%IGN, $_qmgrIgn;
 
   foreach my $ignId (sort keys %IGN)
   {
-    if( $IGN{$ignId}{TYPE} eq 'LAST_ONLY' )
+    my $type = $IGN{$ignId}{TYPE} ;
+    $type = $_locIgn->{$qmgr}{$ignId}{TYPE} if( defined $_locIgn && exists $_locIgn->{$qmgr}{$ignId} && exists $_locIgn->{$qmgr}{$ignId}{TYPE} );
+    if( $type eq 'LAST_ONLY' )
     {
       tailAmqMsg $_amq, $ignId ;
       next;
     }
-    next if( $IGN{$ignId}{TYPE} eq 'EVERY' ); 
-    if( $IGN{$ignId}{TYPE} eq 'NONE' )
+    next if( $type eq 'EVERY' ); 
+    if( $type eq 'NONE' )
     {
       flushAmqMsg $_amq, $ignId ;
     }
-    if( $IGN{$ignId}{TYPE} eq 'GRP_FIRST' )
+    if( $type eq 'GRP_FIRST' )
     {
       groupAmqMsg $_amq, $ignId ;
     }
