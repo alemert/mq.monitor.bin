@@ -7,13 +7,20 @@
 #  Description:
 #
 #  Functions:
+#    - logger          2.05.00   
+#    - logfdc          2.05.00  
+#    - newHash         2.00.00
+#    - sendSigHup      2.03.00
+#    - sigInt()        2.03.00
+#    - sigHup()        2.03.00
 #    - usage           2.00.02
 #    - listCfg         2.00.02
 #    - setTmpIgn       2.00.02
 #    - getTmpIgn       2.00.03
-#    - printHash       2.00.00      (for debug only)    
+#    - printHash       2.00.00   (for dbg only)    
 #    - getCfg          2.00.00
 #    - xml2hash        2.00.00
+#    - expandHash      2.05.00
 #    - mergeHash       2.00.00
 #    - connQmgr        2.00.00
 #    - getPlatform     2.00.00
@@ -21,13 +28,18 @@
 #    - getObjState     2.00.00
 #    - shrinkAttr      2.00.00
 #    - execMqsc        2.00.00 
+#    - joinQlstat      2.04.00
+#    - joinChStat      2.04.00
 #    - parseMqsc       2.00.00
 #    - disQl           2.00.00 
+#    - disXq           2.04.00
 #    - disQs           2.00.00 
 #    - disQmgrAlias    2.03.00
+#    - disChl          2.03.00
 #    - disChs          2.01.00 
 #    - evalStat        2.00.03 
 #    - evalAttr        2.00.00
+#    - lev2id          2.03.00
 #    - cmpTH           2.00.00
 #    - calcRatio       2.04.00
 #    - getMonHash      2.00.00 
@@ -35,49 +47,53 @@
 #    - tree2format     2.00.00
 #    - printMsg        2.00.04 
 #    - xymonMsg        2.00.03 
+#    - mailMsg         2.06.00
+#    - sendMail        2.06.00
 #
 #  History
-#  28.10.2016 2.00.00 Initial Version
-#  15.11.2016 2.00.01 getMonHash bugs solved
-#  25.11.2016 2.00.02 setTmpIgn, 
-#                     printMsg, 
-#                     xymonMsg
-#                     command line handling
-#                     return 2 rc from getMonHash + getting them in getMonHash
-#                     getTmpMsg
-#  29.11.2016 2.00.03 evalStat, xymonMsg _stat->...{ignore} introduced
-#  15.12.2016 2.00.04 show phone nr in header
-#  27.12.2016 2.01.00 disChs for showing SVRCONN 
-#  13.11.2017 2.03.00 Unix / direct connection: cfg2conn
-#                     dis{Obj} ping qmgr added for Unix
-#                     monitor trashold for appl->{type}{$type} 
-#                     showing queue manager state at the top of xymon
-#  27.08.2018 2.04.00 first productive version
-#                     monitor tag key value swaped to trashhold = level
-#                     handling runmqsc zombies improved
-#                     reconnect counter introduced
-# 20.09.2018 2.05.00 monitoring times as a hash, new format of ini files
-# 05.10.2018 2.05.01 expandHash expands whole tree
-# 24.10.2018 2.05.02 getMonHash obj definition found, checkMonTime 
-#                    elsif condition check _defined $_mon added
-#                    calcRatio added for XMITQ
-# 06.11.2018 2.05.03 @import in ini file improved, possible to import stanza 
-#                    from any level of the tree
-# 08.12.2018 2.05.04 persistent ingore for combined attributes implemanted
-#                    reset command displayed
-# 23.01.2019 2.05.05 rename $msg / %msg in printMsg to $xymMsg / %xymMsg
-# 31.01.2019 2.06.00 send mail activated
-# 31.01.2019 2.06.01 send mail debugging text to stdout deleted
-# 01.02.2019 2.06.02 imaginary type QLOUT added, can be used to re-route xymon 
-#                    messages for QL to SYS-MQ view
-#                    keep tag added to ini file to provide QLOUT
-# 05.02.2019 2.07.00 no execMqsc if send tag is missing (why to calculate 
-#                    if nothing to send)
-#                    handling CSQM297I message
-# 05.02.2019 2.07.01 code cleanup dis obj
-#                    new obj type mqSVRCONN equals SVRCONN to duplicate service
-# 20.02.2019 2.07.02 rename QLOUT to mqQLOCAL
-# 19.03.2019 2.07.03 temporary ignore for comb state bug in evalStat solved
+#  28.10.2016 2.00.00 am Initial Version
+#  15.11.2016 2.00.01 am getMonHash bugs solved
+#  25.11.2016 2.00.02 am setTmpIgn, 
+#                        printMsg, 
+#                        xymonMsg
+#                        command line handling
+#                        return 2 rc from getMonHash + getting them in 
+#                        getMonHash getTmpMsg
+#  29.11.2016 2.00.03 am evalStat, xymonMsg _stat->...{ignore} introduced
+#  15.12.2016 2.00.04 am show phone nr in header
+#  27.12.2016 2.01.00 am disChs for showing SVRCONN 
+#  13.11.2017 2.03.00 am Unix / direct connection: cfg2conn
+#                        dis{Obj} ping qmgr added for Unix
+#                        monitor trashold for appl->{type}{$type} 
+#                        showing queue manager state at the top of xymon
+#  27.08.2018 2.04.00 am first productive version
+#                        monitor tag key value swaped to trashhold = level
+#                        handling runmqsc zombies improved
+#                        reconnect counter introduced
+# 20.09.2018 2.05.00 am monitoring times as a hash, new format of ini files
+# 05.10.2018 2.05.01 am expandHash expands whole tree
+# 24.10.2018 2.05.02 am getMonHash obj definition found, checkMonTime 
+#                       elsif condition check _defined $_mon added
+#                       calcRatio added for XMITQ
+# 06.11.2018 2.05.03 am @import in ini file improved, possible to import stanza 
+#                       from any level of the tree
+# 08.12.2018 2.05.04 am persistent ingore for combined attributes implemanted
+#                       reset command displayed
+# 23.01.2019 2.05.05 am rename $msg / %msg in printMsg to $xymMsg / %xymMsg
+# 31.01.2019 2.06.00 am send mail activated
+# 31.01.2019 2.06.01 am send mail debugging text to stdout deleted
+# 01.02.2019 2.06.02 am imaginary type QLOUT added, can be used to re-route 
+#                       xymon messages for QL to SYS-MQ view
+#                       keep tag added to ini file to provide QLOUT
+# 05.02.2019 2.07.00 am no execMqsc if send tag is missing (why to calculate 
+#                       if nothing to send)
+#                       handling CSQM297I message
+# 05.02.2019 2.07.01 am code cleanup dis obj
+#                       new obj type mqSVRCONN equals SVRCONN 
+#                       used for duplicating the service
+# 20.02.2019 2.07.02 am rename QLOUT to mqQLOCAL
+# 19.03.2019 2.07.03 am temporary ignore for comb state bug in evalStat solved
+# 12.04.2019 2.08.00 am send to patrol started
 ################################################################################
 
 use strict ;
@@ -103,7 +119,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.07.03" ;
+my $VERSION = "2.08.00" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2866,6 +2882,10 @@ sub printMsg
         next unless exists $_app->{$app}                  # ignore application
                                   {qmgr}{$qmgr}           # whithout send/xymon
                                   {type}{$type}{send};    #  sub-tree
+                                                          #
+        # -------------------------------------------------
+        # build message for xymon 
+        # -------------------------------------------------
         if( exists $_app->{$app}{qmgr}{$qmgr}             #
                           {type}{$type}{send}{xymon} )    #
         {                                                 #
@@ -2899,25 +2919,39 @@ sub printMsg
             $xymMsg{$host}{$srv}{level}=$lev if $lev>$xymMsg{$host}{$srv}{level};
           }                                               #
         }                                                 #
-
+                                                          #
+        # -------------------------------------------------
+        # build message for e-mail
+        # -------------------------------------------------
         if( exists $_app->{$app}{qmgr}{$qmgr}             #
                           {type}{$type}{send}{mail} )     #
         {                                                 #
-          my ($mailErr,$mailBody,$mailSub)=&mailMsg($qmgr   ,
-                                                    $type   ,        
-                                                    $_glb   ,       
+          my ($mailErr,$mailBody,$mailSub)=&mailMsg($qmgr ,
+                                                    $type ,        
+                                                    $_glb ,       
                                                     $_stat->{$app}); 
-          if( $mailErr > 0 )
-          {
-            $mailMsg{$qmgr}{$type}{body} = $mailBody; 
-            $mailMsg{$qmgr}{$type}{subject} = $mailSub; 
-            $mailMsg{$qmgr}{$type}{address} = $_app->{$app}{qmgr}{$qmgr}{type}{$type}{send}{mail}{address} ;
-            $mailMsg{$qmgr}{$type}{appl} = $app ;
-          }
-        }
-      }                                                   #
-    }                                                     #
+          if( $mailErr > 0 )                              #
+          {                                               #
+            $mailMsg{$qmgr}{$type}{body} = $mailBody;     #
+            $mailMsg{$qmgr}{$type}{subject} = $mailSub;   #
+            $mailMsg{$qmgr}{$type}{address}=$_app->{$app}{qmgr}{$qmgr}
+                                                         {type}{$type}
+                                                         {send}{mail}{address};
+            $mailMsg{$qmgr}{$type}{appl} = $app ;         #
+          }                                               #
+        }                                                 #
+        # -------------------------------------------------
+        # build message for patrol
+        # -------------------------------------------------
+        if( exists $_app->{$app}{qmgr}{$qmgr}             #
+                          {type}{$type}{send}{patrol} )   #
+        {      #
 
+        }      #
+      }                                                   #
+      # --- [end] all type of messages build 
+    }                                                     #
+                                                          #
     foreach my $host (keys %xymMsg)                       #
     {                                                     #
       foreach my $srv (keys %{$xymMsg{$host}})            #
@@ -2928,6 +2962,9 @@ sub printMsg
     }                                                     #
   }                                                       #
                                                           #
+  # -------------------------------------------------------
+  # send xymon message 
+  # -------------------------------------------------------
   foreach my $host ( keys %xymMsg )                       # send a message
   {                                                       #  to xymon
     foreach my $service ( keys $xymMsg{$host} )           #
@@ -2943,7 +2980,10 @@ sub printMsg
       writeMsg $msg, $color, $host, $service ;            #
     }                                                     #
   }                                                       #
-
+                                                          #
+  # -------------------------------------------------------
+  # send mail message
+  # -------------------------------------------------------
   foreach my $qmgr ( keys %mailMsg )
   {
     foreach my $type ( keys %{$mailMsg{$qmgr}} )
