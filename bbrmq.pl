@@ -94,6 +94,7 @@
 # 20.02.2019 2.07.02 am rename QLOUT to mqQLOCAL
 # 19.03.2019 2.07.03 am temporary ignore for comb state bug in evalStat solved
 # 12.04.2019 2.08.00 am send to patrol started
+#                       bbrmq.pl with no attributes -> show usage and die
 ################################################################################
 
 use strict ;
@@ -225,6 +226,7 @@ my $gIgnAttr ;
 my $gIgnTime ;
 my $argc = scalar @ARGV ;
 
+&usage() unless scalar @ARGV > 0 ;
 
 while( defined $ARGV[0] )
 {
@@ -2855,6 +2857,7 @@ sub printMsg
 
   my %xymMsg ;
   my %mailMsg ;
+  my %patrolMsg ;
 
   my %anchor ;
 
@@ -2945,9 +2948,39 @@ sub printMsg
         # -------------------------------------------------
         if( exists $_app->{$app}{qmgr}{$qmgr}             #
                           {type}{$type}{send}{patrol} )   #
-        {      #
-
-        }      #
+        {                                                 #
+          foreach my $obj (keys %{$_stat->{$app}{$qmgr}{$type}})
+          {                                               #
+            foreach my $_objInst (@{$_stat->{$app}{$qmgr}{$type}{$obj}})
+            {                                             #
+              next unless exists $_objInst->{level};      #
+              foreach my $attr (keys %{$_objInst->{attr}})#
+              {                                           #
+                next unless exists $_objInst->{attr}{$attr}{level} ;
+                my $_attr = $_objInst->{attr}{$attr} ;    #
+                if( $_attr->{level} == $NA  ||            # don't handle NA & 
+                    $_attr->{level} == $SHW  )            # SHW for patrol
+                {                                         #
+                  next;                                   #
+                }                                         #
+                if( $_attr->{level} == $OK  ||            # for Patrol 
+                    $_attr->{level} == $IGN ||            # OK, IGN and Temp IGN
+                    $_attr->{level} == $TIG  )            # is the same
+                {                                         #
+                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{value} = $_attr->{value} ;
+                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{level} = $OK ;
+                  next;                                   #
+                }                                         #
+                if( $_attr->{level} == $WAR ||            # Alerts to be send:
+                    $_attr->{level} == $ERR  )            # ERR, WAR
+                {                                         #
+                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{value} = $_attr->{value} ;
+                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{level} = $_attr->{level} ;
+                }                                         #
+              }                                           #
+            }                                             #
+          }                                               #
+        }                                                 #
       }                                                   #
       # --- [end] all type of messages build 
     }                                                     #
@@ -2995,6 +3028,24 @@ sub printMsg
                  $qmgr, $type );
     } 
   }
+  # -------------------------------------------------------
+  # send patrol message
+  # -------------------------------------------------------
+  foreach my $qmgr ( keys %patrolMsg )
+  {
+    foreach my $type ( keys %{$patrolMsg{$qmgr}} )
+    {
+      foreach my $obj ( keys %{$patrolMsg{$qmgr}{$type}} )
+      {
+        foreach my $attr ( keys %{$patrolMsg{$qmgr}{$type}{$obj}} )
+        {
+       #  sendPatrol $qmgr,$type,$obj,$attr,
+       #             $patrolMsg{$qmgr}{$type}{$obj}{$attr}{level};
+        }
+      }
+    }
+  }
+
 }
 
 ################################################################################
@@ -3267,9 +3318,32 @@ sub sendMail
   }
   close MAIL ;
   close TMP ;
+}
 
+################################################################################
+# send patrol
+################################################################################
+sub sendPatrol
+{
+  my $qmgr  = $_[0];
+  my $type  = $_[1];
+  my $obj   = $_[2];
+  my $attr  = $_[3];
+  my $level = $_[4];
 
- 
+  # check for flag file
+  # stat $TMP/....
+
+  # if level == OK ->
+  #    -> if flag file existst -> send OK; remove flag file;
+  #    -> else -> nothing
+
+  # if level > OK  (WAR, ERR)  ->
+  #    -> if flag file existst -> nothing
+  #    -> else -> send $level, write flag
+
+  # it is important to send first and than write / remove flag file. 
+  # for monitoring two same messages in 5 minutes are better than no alert at all
 }
 
 ################################################################################
