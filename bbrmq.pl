@@ -95,6 +95,7 @@
 # 19.03.2019 2.07.03 am temporary ignore for comb state bug in evalStat solved
 # 12.04.2019 2.08.00 am send to patrol started
 #                       bbrmq.pl with no attributes -> show usage and die
+# 10.05.2019 2.08.01 am send to patrol, 1st working version
 ################################################################################
 
 use strict ;
@@ -120,7 +121,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.08.00" ;
+my $VERSION = "2.08.01" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -195,6 +196,7 @@ my $xymonCss = "
 ################################################################################
 my $cfg = "/home/mqm/monitor/ini/mqmon.ini" ;
 my $runmqsc = "/opt/mqm/90a/bin/runmqsc -e " ;
+my $patrol  = "/opt/Patrol/MSEND/PatrolEvent" ;
 
 my $_conn ;  # $_conn has to be global so it can be used in the signal handler
 
@@ -2963,19 +2965,41 @@ sub printMsg
                 {                                         #
                   next;                                   #
                 }                                         #
+                my $ignore = $OK;                         #
+                $ignore = $_attr->{ignore} if exists $_attr->{ignore} ;
+                $patrolMsg{$app}{$qmgr}                   #
+                          {$type}{$obj}                   #
+                          {$attr}{class}=$_app->{$app}{qmgr}
+                                                {$qmgr}{type}
+                                                {$type}{send}
+                                                {patrol}{class};
+                $patrolMsg{$app}{$qmgr}                   #
+                          {$type}{$obj}                   #
+                          {$attr}{resend}=$_app->{$app}{qmgr}
+                                                {$qmgr}{type}
+                                                {$type}{send}
+                                                {patrol}{resend};
                 if( $_attr->{level} == $OK  ||            # for Patrol 
-                    $_attr->{level} == $IGN ||            # OK, IGN and Temp IGN
-                    $_attr->{level} == $TIG  )            # is the same
+                    $ignore         == $IGN ||            # OK, IGN and Temp IGN
+                    $ignore         == $TIG  )            # is the same
                 {                                         #
-                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{value} = $_attr->{value} ;
-                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{level} = $OK ;
+                  $patrolMsg{$app}{$qmgr}                 #
+                            {$type}{$obj}                 #
+                            {$attr}{value}=$_attr->{value};
+                  $patrolMsg{$app}{$qmgr}                 #
+                            {$type}{$obj}                 #
+                            {$attr}{level} = $OK ;        #
                   next;                                   #
                 }                                         #
                 if( $_attr->{level} == $WAR ||            # Alerts to be send:
                     $_attr->{level} == $ERR  )            # ERR, WAR
                 {                                         #
-                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{value} = $_attr->{value} ;
-                  $patrolMsg{$qmgr}{$type}{$obj}{$attr}{level} = $_attr->{level} ;
+                  $patrolMsg{$app}{$qmgr}                 #
+                            {$type}{$obj}                 #
+                            {$attr}{value}=$_attr->{value};
+                  $patrolMsg{$app}{$qmgr}                 #
+                            {$type}{$obj}                 #
+                            {$attr}{level}=$_attr->{level};
                 }                                         #
               }                                           #
             }                                             #
@@ -3031,16 +3055,21 @@ sub printMsg
   # -------------------------------------------------------
   # send patrol message
   # -------------------------------------------------------
-  foreach my $qmgr ( keys %patrolMsg )
+  foreach my $app ( keys %patrolMsg )
   {
-    foreach my $type ( keys %{$patrolMsg{$qmgr}} )
+    foreach my $qmgr ( keys %{$patrolMsg{$app}} )
     {
-      foreach my $obj ( keys %{$patrolMsg{$qmgr}{$type}} )
+      foreach my $type ( keys %{$patrolMsg{$app}{$qmgr}} )
       {
-        foreach my $attr ( keys %{$patrolMsg{$qmgr}{$type}{$obj}} )
+        foreach my $obj ( keys %{$patrolMsg{$app}{$qmgr}{$type}} )
         {
-       #  sendPatrol $qmgr,$type,$obj,$attr,
-       #             $patrolMsg{$qmgr}{$type}{$obj}{$attr}{level};
+          foreach my $attr ( keys %{$patrolMsg{$app}{$qmgr}{$type}{$obj}} )
+          {
+            next unless exists $patrolMsg{$app}{$qmgr}{$type}
+                                         {$obj}{$attr}{level};
+            &sendPatrol( $app, $qmgr, $type, $obj, $attr,
+                         $patrolMsg{$app}{$qmgr}{$type}{$obj}{$attr} );
+          }
         }
       }
     }
@@ -3325,25 +3354,78 @@ sub sendMail
 ################################################################################
 sub sendPatrol
 {
-  my $qmgr  = $_[0];
-  my $type  = $_[1];
-  my $obj   = $_[2];
-  my $attr  = $_[3];
-  my $level = $_[4];
+  my $app   = $_[0];
+  my $qmgr  = $_[1];
+  my $type  = $_[2];
+  my $obj   = $_[3];
+  my $attr  = $_[4];
+  my $_send = $_[5];
 
-  # check for flag file
-  # stat $TMP/....
+  my $class  = $_send->{class};
+  my $resend = $_send->{resend};
+  my $value  = $_send->{value};
+  my $level  = $_send->{level};
 
-  # if level == OK ->
-  #    -> if flag file existst -> send OK; remove flag file;
-  #    -> else -> nothing
+  my $baseFile = $app.'-'.$qmgr.'-'.$attr.'-'.$obj ;
+  my $patrolFile = $TMP.'/patrol@'.$baseFile ;
 
-  # if level > OK  (WAR, ERR)  ->
-  #    -> if flag file existst -> nothing
-  #    -> else -> send $level, write flag
+  my $fileTime = (stat $patrolFile)[9] ;  # check for flag file
+  my $sysTime = time() ;
 
-  # it is important to send first and than write / remove flag file. 
-  # for monitoring two same messages in 5 minutes are better than no alert at all
+  if( defined $fileTime &&
+      ( $resend > 0 ) && 
+      ( $sysTime - $fileTime - $resend*3600 > 0 ) )
+  {
+    unlink $patrolFile ; 
+    undef $fileTime ;
+  }
+
+  my $txtLev ;
+  if( $level == $OK  )
+  {
+    $txtLev = 'OK' ; 
+  }
+  elsif( $level == $WAR )
+  {
+    $txtLev = 'WARNING' ; 
+  }
+  elsif( $level == $ERR )
+  {
+    $txtLev = 'CRITICAL' ;
+  }
+
+  my $patrolObj = "$attr:$qmgr\@$obj-$type" ;
+  my $txtMsg    = "$txtLev for $attr = $value on $qmgr\@$obj";
+
+  if( $level == $OK )    # if level OK (white, blue, green)
+  {
+    if( defined $fileTime )
+    {
+      system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
+      my $rc =  $?>>8 ;
+      unlink $patrolFile if $rc == 0 ; 
+    }
+    else
+    {
+    }
+  }
+  elsif( $level == $WAR || 
+         $level == $ERR  )
+  {
+    if( defined $fileTime )
+    {
+    }
+    else
+    {
+      system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
+      my $rc =  $?>>8 ;
+      if( $rc == 0 )
+      {
+        open FLAG, ">$patrolFile";
+        close FLAG;
+      }
+    }
+  }
 }
 
 ################################################################################
@@ -3415,7 +3497,6 @@ unless( $pid == 0 )
   waitpid $pid, &WNOHANG ;
   $pid = 0 ;
 }
-
 
 # ----------------------------------------------------------
 # connect to all queue manager
