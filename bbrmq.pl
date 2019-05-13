@@ -3394,14 +3394,16 @@ sub sendPatrol
     $txtLev = 'CRITICAL' ;
   }
 
-  my $patrolObj = "$attr:$qmgr\@$obj-$type" ;
+# my $patrolObj = "$attr:$qmgr\@$obj-$type" ;
+  my $patrolParam = "$type\@$obj:$attr" ;
   my $txtMsg    = "$txtLev for $attr = $value on $qmgr\@$obj";
 
   if( $level == $OK )    # if level OK (white, blue, green)
   {
     if( defined $fileTime )
     {
-      system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
+#     system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
+      system "$patrol -c $class -s $txtLev -o \"$qmgr\" -p \"$patrolParam\" -m \"$txtMsg \" ";
       my $rc =  $?>>8 ;
       unlink $patrolFile if $rc == 0 ; 
     }
@@ -3417,7 +3419,8 @@ sub sendPatrol
     }
     else
     {
-      system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
+#     system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
+      system "$patrol -c $class -s $txtLev -o \"$qmgr\" -p \"$patrolParam\" -m \"$txtMsg \" ";
       my $rc =  $?>>8 ;
       if( $rc == 0 )
       {
