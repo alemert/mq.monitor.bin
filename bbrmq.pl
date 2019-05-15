@@ -30,7 +30,7 @@
 #    - execMqsc        2.00.00 
 #    - joinQlstat      2.04.00
 #    - joinChStat      2.04.00
-#    - parseMqsc       2.00.00
+#    - parseMqsc       2.00.00 2.09.00
 #    - disQl           2.00.00 
 #    - disXq           2.04.00
 #    - disQs           2.00.00 
@@ -96,6 +96,7 @@
 # 12.04.2019 2.08.00 am send to patrol started
 #                       bbrmq.pl with no attributes -> show usage and die
 # 10.05.2019 2.08.01 am send to patrol, 1st working version
+# 15.05.2019 2.09.00 am Ver. 9.1 AMQ\d{4} Messages replaced by AMQ\d{4}\w 
 ################################################################################
 
 use strict ;
@@ -121,7 +122,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.08.01" ;
+my $VERSION = "2.09.00" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -1403,7 +1404,7 @@ sub getPlatform
   while(my $line=<$rd>)
   {
     chomp $line ;
-    if( $line =~ /^\s*(AMQ\d{4}):\s+/ )
+    if( $line =~ /^\s*(AMQ\d{4})\w?:\s+/ )
     {
       my $amq = $1;
       if( $amq eq 'AMQ8416' )  # MQSC timed out waiting for a response 
@@ -1795,7 +1796,7 @@ sub parseMqsc
     chomp $line;                         #
     next if $line =~ /^\s*$/ ;           #
                                          #
-    if( $line =~ /(AMQ\d{4}):/ )         #
+    if( $line =~ /(AMQ\d{4})\w?:/ )      #
     {                                    #
       my $amq = $1;                      #
       if( $amq eq 'AMQ8145' ||           # Connection broken.
@@ -3486,7 +3487,7 @@ if( $pid == waitpid $pid, &WNOHANG )      # check if runmqsc is still
 print $wr "ping qmgr \n" ;
 while( my $line=<$rd> )
 {
-  last if $line =~ /AMQ\d{4}:/ ;
+  last if $line =~ /AMQ\d{4}\w?:/ ;
 }
 
 my @qmgrAlias = keys (disQmgrAlias( $rd, $wr, '*', 'UNIX' )); 
