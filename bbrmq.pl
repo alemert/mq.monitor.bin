@@ -97,6 +97,9 @@
 #                       bbrmq.pl with no attributes -> show usage and die
 # 10.05.2019 2.08.01 am send to patrol, 1st working version
 # 15.05.2019 2.09.00 am Ver. 9.1 AMQ\d{4} Messages replaced by AMQ\d{4}\w 
+# 22.05.2019 2.09.01 am monitoring time for obj->{attr}{$attr} key/value swaped
+#                       in function getMonHash. 
+#                       this error 2.04.00 was produced in Ver 2.04.00
 ################################################################################
 
 use strict ;
@@ -122,7 +125,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.00" ;
+my $VERSION = "2.09.01" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2665,8 +2668,8 @@ sub getMonHash
       #                 {obj}{$obj}{attr}{$attr}{monitor}{time}
       # ----------------------------------------------------
       if( exists $_obj->{attr}          &&        #
-          exists $_obj->{attr}{$attr}   &&        # check if attr sub tree exists
-          exists $_obj->{attr}{$attr}{monitor} )  #
+          exists $_obj->{attr}{$attr}   &&        # check if attr sub
+          exists $_obj->{attr}{$attr}{monitor} )  #   tree exists
       {                                           #
         if( exists $_obj->{attr}{$attr}           # check for time configuration
                           {monitor}{time} )       #
@@ -2676,18 +2679,15 @@ sub getMonHash
                                   {monitor}       #
                                   {time} ) == $ON)#
           {                                       #
-            if( exists $_obj->{attr}{$attr}       #
-                              {monitor}{err}||    #
-                exists $_obj->{attr}{$attr}       #
-                              {monitor}{war}||    #
-                exists $_obj->{attr}{$attr}       #
-                              {monitor}{ok}  )    #
+            my $monSet = 0;                       #
+            foreach my $key ( keys %{$_obj->{attr}{$attr}{monitor}{time}} )
             {                                     #
-              $_mon = $_obj->{attr}{$attr}        #
-                             {monitor};           #
+              next unless ref \$_obj->{attr}{$attr}{monitor}{$key} eq 'SCALAR';
+              $_mon = $_obj->{attr}{$attr}{monitor};    
               $_monOld = $_mon;                   #
+              $monSet = 1;                        #
             }                                     #
-            else                                  #
+            if( $monSet == 0 )                    #
             {                                     #
               $_mon = $_monOld;                   #
             }                                     #
