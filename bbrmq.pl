@@ -100,6 +100,7 @@
 # 22.05.2019 2.09.01 am monitoring time for obj->{attr}{$attr} key/value swaped
 #                       in function getMonHash. 
 #                       this error 2.04.00 was produced in Ver 2.04.00
+# 07.06.2019 2.09.02 am monitoring time for mail bug solved
 ################################################################################
 
 use strict ;
@@ -125,7 +126,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.01" ;
+my $VERSION = "2.09.02" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -3230,11 +3231,12 @@ sub mailMsg
   {
     foreach my $_objInst (@{$_stat->{$qmgr}{$type}{$obj}})
     {
-      my @line = ($obj) ;
+      next if $_objInst->{level} == $IGN ;
+  #   my @line = ($obj) ;
       my $objErr=0; 
       foreach my $attr ( sort keys %{$_glb->{type}{$type}{attr}} )
       {
-        push @line, $_objInst->{attr}{$attr}{value} ;
+  #     push @line, $_objInst->{attr}{$attr}{value} ;
         next unless exists $_objInst->{attr}{$attr}{level} ;
         if( $_objInst->{attr}{$attr}{level} == $ERR )
         {
