@@ -101,6 +101,7 @@
 #                       in function getMonHash. 
 #                       this error 2.04.00 was produced in Ver 2.04.00
 # 07.06.2019 2.09.02 am monitoring time for mail bug solved
+# 28.06.2019 2.09.03 am patrol Warnings disabled. bug: OK->WAR->ERR ERR not sent
 ################################################################################
 
 use strict ;
@@ -126,7 +127,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.02" ;
+my $VERSION = "2.09.03" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -3414,7 +3415,7 @@ sub sendPatrol
     {
     }
   }
-  elsif( $level == $WAR || 
+  elsif( # $level == $WAR || 
          $level == $ERR  )
   {
     if( defined $fileTime )
