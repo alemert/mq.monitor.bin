@@ -102,6 +102,8 @@
 #                       this error 2.04.00 was produced in Ver 2.04.00
 # 07.06.2019 2.09.02 am monitoring time for mail bug solved
 # 28.06.2019 2.09.03 am patrol Warnings disabled. bug: OK->WAR->ERR ERR not sent
+# 19.07.2019 2.09.04 am getMonHash {obj}{$obj}{attr}{$attr}{monitor}{time} 
+#                       bug solved
 ################################################################################
 
 use strict ;
@@ -2673,39 +2675,34 @@ sub getMonHash
           exists $_obj->{attr}{$attr}   &&        # check if attr sub
           exists $_obj->{attr}{$attr}{monitor} )  #   tree exists
       {                                           #
+        my $monSet = 0;                           #
+        foreach my $key ( keys %{$_obj->{attr}{$attr}{monitor}} )
+        {                                         #
+            next unless ref \$_obj->{attr}{$attr} #
+                                  {monitor}{$key} eq 'SCALAR';
+          $_mon = $_obj->{attr}{$attr}{monitor};  #    
+          $_monOld = $_mon;                       #
+          $monSet = 1;                            #
+          last ;                                  #
+        }                                         #
+        if( $monSet == 0 )                        #
+        {                                         #
+          $_mon = $_monOld;                       #
+        }                                         #
         if( exists $_obj->{attr}{$attr}           # check for time configuration
                           {monitor}{time} )       #
         {                                         #
           if(&checkMonTime($_obj->{attr}          #
                                   {$attr}         #
                                   {monitor}       #
-                                  {time} ) == $ON)#
+                                  {time} )==$OFF) #
           {                                       #
-            my $monSet = 0;                       #
-            foreach my $key ( keys %{$_obj->{attr}{$attr}{monitor}{time}} )
-            {                                     #
-              next unless ref \$_obj->{attr}{$attr}{monitor}{$key} eq 'SCALAR';
-              $_mon = $_obj->{attr}{$attr}{monitor};    
-              $_monOld = $_mon;                   #
-              $monSet = 1;                        #
-            }                                     #
-            if( $monSet == 0 )                    #
-            {                                     #
-              $_mon = $_monOld;                   #
-            }                                     #
+            $rc=$IGN;                             #
           }                                       #
-          $rc = $SHW;                             #
         }                                         #
-        elsif( $rc ne $IGN )                      #
+        if( $rc ne $IGN )                         #
         {                                         #
-          $_mon = $_obj->{attr}{$attr}{monitor};  #
-          $_monOld = $_mon;                       #
           $rc = $SHW;                             #
-        }                                         #
-        else                                      #
-        {                                         #
-        # $_mon = $_obj->{attr}{$attr}{monitor};  #
-          $rc = $IGN;                             #
         }                                         #
       }                                           #
     }
@@ -2727,6 +2724,8 @@ sub getMonHash
 
 ################################################################################
 # check monitoring time
+#   rc: ON
+#       OFF
 ################################################################################
 sub checkMonTime
 {
