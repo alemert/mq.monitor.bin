@@ -103,7 +103,7 @@
 # 07.06.2019 2.09.02 am monitoring time for mail bug solved
 # 28.06.2019 2.09.03 am patrol Warnings disabled. bug: OK->WAR->ERR ERR not sent
 # 19.07.2019 2.09.04 am getMonHash {obj}{$obj}{attr}{$attr}{monitor}{time} 
-#                       bug solved
+# 22.07.2019 2.09.05 am evalStat $th not initialized for combine, solved
 ################################################################################
 
 use strict ;
@@ -129,7 +129,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.03" ;
+my $VERSION = "2.09.05" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2081,6 +2081,11 @@ sub evalStat
                 next unless exists $_cmb->{$cmb}{match};
                 $_stObj->{attr}{$cmb}{value} = '' ;  # set empty value
                 $_stObj->{attr}{$cmb}{level} = $OK;  # assume level OK
+                $_stObj->{attr}{$cmb}{monitor} = "combine ";
+                foreach my $key (keys %{$_cmb->{$cmb}{match}})
+                {
+                  $_stObj->{attr}{$cmb}{monitor} .= "$key +" ;
+                }
                 my $matchCnt = 0;                    #
                 my $combIgn = 0;                     #
                 my $ignRc ;
