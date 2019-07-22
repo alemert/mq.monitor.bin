@@ -104,6 +104,7 @@
 # 28.06.2019 2.09.03 am patrol Warnings disabled. bug: OK->WAR->ERR ERR not sent
 # 19.07.2019 2.09.04 am getMonHash {obj}{$obj}{attr}{$attr}{monitor}{time} 
 # 22.07.2019 2.09.05 am evalStat $th not initialized for combine, solved
+# 22.07.2019 2.09.06 am getMonHash empty monitori hash on attr level not wokring
 ################################################################################
 
 use strict ;
@@ -129,7 +130,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.05" ;
+my $VERSION = "2.09.06" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2681,14 +2682,22 @@ sub getMonHash
           exists $_obj->{attr}{$attr}{monitor} )  #   tree exists
       {                                           #
         my $monSet = 0;                           #
-        foreach my $key ( keys %{$_obj->{attr}{$attr}{monitor}} )
-        {                                         #
-            next unless ref \$_obj->{attr}{$attr} #
-                                  {monitor}{$key} eq 'SCALAR';
-          $_mon = $_obj->{attr}{$attr}{monitor};  #    
-          $_monOld = $_mon;                       #
-          $monSet = 1;                            #
-          last ;                                  #
+        if( keys %{ $_obj->{attr}{$attr}{monitor}} == 0 )
+        {
+          $monSet = 1 ;
+          $_mon = $_obj->{attr}{$attr}{monitor} ;
+        }
+        else
+        {
+          foreach my $key ( keys %{$_obj->{attr}{$attr}{monitor}} )
+          {                                         #
+              next unless ref \$_obj->{attr}{$attr} #
+                                    {monitor}{$key} eq 'SCALAR';
+            $_mon = $_obj->{attr}{$attr}{monitor};  #    
+            $_monOld = $_mon;                       #
+            $monSet = 1;                            #
+            last ;                                  #
+          }                                         #
         }                                         #
         if( $monSet == 0 )                        #
         {                                         #
