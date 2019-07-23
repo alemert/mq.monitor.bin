@@ -104,7 +104,8 @@
 # 28.06.2019 2.09.03 am patrol Warnings disabled. bug: OK->WAR->ERR ERR not sent
 # 19.07.2019 2.09.04 am getMonHash {obj}{$obj}{attr}{$attr}{monitor}{time} 
 # 22.07.2019 2.09.05 am evalStat $th not initialized for combine, solved
-# 22.07.2019 2.09.06 am getMonHash empty monitori hash on attr level not wokring
+# 22.07.2019 2.09.06 am getMonHash empty monitor hash on attr level not wokring
+# 23.07.2019 2.09.07 am evalStat display empty monitor hash on attr level gray
 ################################################################################
 
 use strict ;
@@ -130,7 +131,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.06" ;
+my $VERSION = "2.09.07" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2046,8 +2047,12 @@ sub evalStat
               $levRc=&evalAttr($_stAttr->{$attr}     #
                                          {value},    #
                                $_mon);               #
-              $_stAttr->{$attr}{monitor} = $_mon;    #
-              $_stAttr->{$attr}{level} = $levRc;     #
+              if( scalar keys $_mon > 0 )            #
+              {                                      #
+                $_stAttr->{$attr}{monitor} = $_mon ; #
+                $_stAttr->{$attr}{level} = $levRc;   #
+                next;                                #
+              }                                      #
               if( exists $_ign->{$app}{$qmgr}{$type} #   full exists fehlt
                                 {$obj}{$attr}      ) #
               {                                      #
@@ -2099,8 +2104,10 @@ sub evalStat
                   {                                  #
                     $combIgn++;                      #
                   }                                  #
-                  if($_stObj->{attr}{$attr}{level}== # push attributes with
-                     lev2id( $_cmb->{$cmb}{match}{$attr}) )
+                  if( exists $_stObj->{attr}{$attr}{level} &&
+                      ( $_stObj->{attr}{$attr}{level} == 
+                        lev2id( $_cmb->{$cmb}{match}{$attr}) ) 
+                    )                                # push attributes with
                   {                                  #  matching level
                     $_stObj->{attr}{$cmb}{value} .= $attr . '+' ;
                     $matchCnt++;                     # count matching attributes
@@ -2682,22 +2689,23 @@ sub getMonHash
           exists $_obj->{attr}{$attr}{monitor} )  #   tree exists
       {                                           #
         my $monSet = 0;                           #
-        if( keys %{ $_obj->{attr}{$attr}{monitor}} == 0 )
-        {
-          $monSet = 1 ;
-          $_mon = $_obj->{attr}{$attr}{monitor} ;
-        }
-        else
-        {
+        if( ( scalar keys %{ $_obj->{attr}{$attr}{monitor}}) == 0 )
+        {                                         #
+          $monSet = 1 ;                           #
+          $_mon = $_obj->{attr}{$attr}{monitor} ; #
+          $rc = $SHW ;
+        }                                         #
+        else                                      #
+        {                                         #
           foreach my $key ( keys %{$_obj->{attr}{$attr}{monitor}} )
-          {                                         #
-              next unless ref \$_obj->{attr}{$attr} #
+          {                                       #
+            next unless ref \$_obj->{attr}{$attr} #
                                     {monitor}{$key} eq 'SCALAR';
-            $_mon = $_obj->{attr}{$attr}{monitor};  #    
-            $_monOld = $_mon;                       #
-            $monSet = 1;                            #
-            last ;                                  #
-          }                                         #
+            $_mon = $_obj->{attr}{$attr}{monitor};#    
+            $_monOld = $_mon;                     #
+            $monSet = 1;                          #
+            last ;                                #
+          }                                       #
         }                                         #
         if( $monSet == 0 )                        #
         {                                         #
