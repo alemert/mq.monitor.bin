@@ -106,6 +106,7 @@
 # 22.07.2019 2.09.05 am evalStat $th not initialized for combine, solved
 # 22.07.2019 2.09.06 am getMonHash empty monitor hash on attr level not wokring
 # 23.07.2019 2.09.07 am evalStat display empty monitor hash on attr level gray
+# 31.07.2019 2.09.08 am qmgr->obj->attr->monitor inherit ->time bug solved
 ################################################################################
 
 use strict ;
@@ -131,7 +132,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.07" ;
+my $VERSION = "2.09.08" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2301,6 +2302,8 @@ sub getMonHash
   my $_mon    ;
   my $_monOld ;
 
+  my $rcAttrTime = $NA ;
+
   # --------------------------------------------------------
   # check the global configuration
   #   global configuration can be only set on type level
@@ -2326,9 +2329,11 @@ sub getMonHash
   if( exists $_app->{monitor}      &&
       exists $_app->{monitor}{time} )
   {
+    $rcAttrTime = $OK ;
     if( $OFF==&checkMonTime($_app->{monitor}{time}))
     { 
       $rc = $IGN if defined $_mon ;
+      $rcAttrTime = $IGN ;
     }
   }
 
@@ -2341,9 +2346,11 @@ sub getMonHash
       exists $_app->{type}{$type}{monitor}      && 
       exists $_app->{type}{$type}{monitor}{time} )
   {
+    $rcAttrTime = $OK ;
     if( $OFF == &checkMonTime( $_app->{type}{$type}{monitor}{time} ))
     {
       $rc = $IGN if defined $_mon;
+      $rcAttrTime = $IGN ;
     }
     elsif( $rc == $IGN &&        # if  $_app->{}{} set on ignore
            defined $_monOld   )  # and $_app->{type{}{}{} set back to monitor, 
@@ -2363,12 +2370,20 @@ sub getMonHash
       exists $_app->{type}{$type}{attr}{$attr}          && 
       exists $_app->{type}{$type}{attr}{$attr}{monitor} )
   {
+#
+#  FEHLER fehler 
+#  ERROR error 
+#  BUG bug
+#  ..{monitor}{err} kann nicht existieren.
+#  es gibt nur ..{monitor}{>100}=err 
+#
     if( exists $_app->{type}{$type}{attr}{$attr}{monitor}{time} )
     {
       if(  &checkMonTime( $_app->{type}{$type}
                                  {attr}{$attr}
                                  {monitor}{time} ) == $ON )
       {
+        $rcAttrTime = $OK ;
         if(exists $_app->{type}{$type}{attr}{$attr}{monitor}{err}||
            exists $_app->{type}{$type}{attr}{$attr}{monitor}{war}||
            exists $_app->{type}{$type}{attr}{$attr}{monitor}{ok}  )
@@ -2392,6 +2407,7 @@ sub getMonHash
     else
     {
       $rc = $IGN;
+      $rcAttrTime = $IGN ;
     }
   }
 
@@ -2453,10 +2469,12 @@ sub getMonHash
       if( exists $_obj->{monitor}  &&                #
           exists $_obj->{monitor}{time} )            #
       {                                              #
+        $rcAttrTime = $OK ;                          #
         if( &checkMonTime($_obj->{monitor}{time})    # 
               == $OFF      )                         #
         {                                            #
           $rc = $IGN ;                               #
+          $rcAttrTime = $IGN ;                       #
         }                                            #
         elsif( defined $_mon   &&                    #
                $_mon == $IGN   &&                    # if earlier set on ignore 
@@ -2479,11 +2497,20 @@ sub getMonHash
         if( exists $_obj->{attr}{$attr}              # check for time
                           {monitor}{time} )          #  configuration
         {                                            #
+          $rcAttrTime = $IGN ;                          #
           if(&checkMonTime($_obj->{attr}             #
                                   {$attr}            #
                                   {monitor}          #
                                   {time}  ) == $ON)  #
           {                                          #
+            $rcAttrTime = $OK ;                          #
+#
+#  FEHLER fehler 
+#  ERROR error 
+#  BUG bug
+#  ..{monitor}{err} kann nicht existieren.
+#  es gibt nur ..{monitor}{>100}=err 
+#
             if( exists $_obj->{attr}{$attr}          #
                               {monitor}{err}||       #
                 exists $_obj->{attr}{$attr}          #
@@ -2526,9 +2553,11 @@ sub getMonHash
   if( exists $_app->{qmgr}{$qmgr}{monitor}  &&          
       exists $_app->{qmgr}{$qmgr}{monitor}{time} )     
   {
+    $rcAttrTime = $OK ;                         
     if( $OFF == &checkMonTime( $_app->{qmgr}{$qmgr}{monitor}{time} ))
     {
       $rc = $IGN if defined $_mon;
+      $rcAttrTime = $IGN ;                         
     }
     elsif( $rc == $IGN &&        # if  $_app->{}{} set on ignore
            defined $_monOld   )  # and $_app->{qmgr{}{}{} set back to monitor, 
@@ -2547,9 +2576,11 @@ sub getMonHash
   if( exists $_app->{qmgr}{$qmgr}{type}{$type}{monitor}  &&
       exists $_app->{qmgr}{$qmgr}{type}{$type}{monitor}{time} )     
   {
+    $rcAttrTime = $OK ;                         
     if( $OFF==&checkMonTime( $_app->{qmgr}{$qmgr}{type}{$type}{monitor}{time} ))
     {
       $rc = $IGN if defined $_mon;
+      $rcAttrTime = $IGN ;                         
     }
     elsif( $rc == $IGN &&        # if  $_app->{}{} set on ignore
            defined $_monOld   )  # and $_app->{qmgr{}{}{} set back to monitor, 
@@ -2570,10 +2601,19 @@ sub getMonHash
   {
     if( exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{time} )
     {
+      $rcAttrTime = $IGN ;                         
       if(  &checkMonTime( $_app->{qmgr}{$qmgr}
                                  {type}{$type}
                                  {attr}{$attr}{monitor}{time}) == $ON )
       {  
+        $rcAttrTime = $OK ;                         
+#
+#  FEHLER fehler 
+#  ERROR error 
+#  BUG bug
+#  ..{monitor}{err} kann nicht existieren.
+#  es gibt nur ..{monitor}{>100}=err 
+#
         if(exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{err}||
            exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{war}||
            exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{ok}  )
@@ -2665,10 +2705,12 @@ sub getMonHash
       if( exists $_obj->{monitor}  &&             #
           exists $_obj->{monitor}{time} )         #
       {                                           #
+        $rcAttrTime = $OK ;                         
         if( &checkMonTime($_obj->{monitor}{time}) # 
               == $OFF      )                      #
         {                                         #
           $rc = $IGN ;                            #
+          $rcAttrTime = $IGN ;                         
         }                                         #
         elsif( defined $_mon   &&                 #
                $_mon == $IGN   &&                 # if earlier set on ignore 
@@ -2722,6 +2764,10 @@ sub getMonHash
             $rc=$IGN;                             #
           }                                       #
         }                                         #
+        elsif( $rcAttrTime == $IGN )              #
+        {            #
+          $rc=$IGN;                               #
+        }            #
         if( $rc ne $IGN )                         #
         {                                         #
           $rc = $SHW;                             #
