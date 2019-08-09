@@ -109,6 +109,7 @@
 # 31.07.2019 2.09.08 am qmgr->obj->attr->monitor inherit ->time bug solved
 # 02.08.2019 2.09.09 am $_stObj->{attr}{$cmb}{monitor} in evalStat was set to 
 #                       SCALAR, the code was comment out.
+# 09.08.2019 2.09.10 am bug evaluating levAttr to levObj in evalStat solved
 ################################################################################
 
 use strict ;
@@ -134,7 +135,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.09" ;
+my $VERSION = "2.09.10" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2054,7 +2055,7 @@ sub evalStat
               {                                      #
                 $_stAttr->{$attr}{monitor} = $_mon ; #
                 $_stAttr->{$attr}{level} = $levRc;   #
-                next;                                #
+            #   next;                                #
               }                                      #
               if( exists $_ign->{$app}{$qmgr}{$type} #   full exists fehlt
                                 {$obj}{$attr}      ) #
