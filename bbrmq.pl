@@ -30,6 +30,7 @@
 #    - execMqsc        2.00.00 
 #    - joinQlstat      2.04.00
 #    - joinChStat      2.04.00
+#    - joinLsStat      2.10.00
 #    - parseMqsc       2.00.00 2.09.00
 #    - disQl           2.00.00 
 #    - disXq           2.04.00
@@ -37,10 +38,15 @@
 #    - disQmgrAlias    2.03.00
 #    - disChl          2.03.00
 #    - disChs          2.01.00 
+#    - disQmStat       2.10.00
+#    - disList         2.10.00
+#    - disLisStat      2.10.00
+#    - disServ         2.10.00
+#    - disServStat     2.10.00
 #    - evalStat        2.00.03 
 #    - evalAttr        2.00.00
 #    - lev2id          2.03.00
-#    - cmpTH           2.00.00
+#    - cmpTH           2.00.00 2.10.00
 #    - calcRatio       2.04.00
 #    - getMonHash      2.00.00 
 #    - checkMonTime    2.00.00
@@ -109,6 +115,11 @@
 # 31.07.2019 2.09.08 am qmgr->obj->attr->monitor inherit ->time bug solved
 # 02.08.2019 2.09.09 am $_stObj->{attr}{$cmb}{monitor} in evalStat was set to 
 #                       SCALAR, the code was comment out.
+# 09.08.2019 2.09.10 am bug evaluating levAttr to levObj in evalStat solved
+# 12.08.2019 2.10.00 am types QMGR, LISTENER added 
+#                       functions( disQmStat, disList, disLisStat, joinLsStat,
+#                       disServ, disServStat )
+#                       cmpTH operator ! introduced
 ################################################################################
 
 use strict ;
@@ -134,7 +145,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.09.09" ;
+my $VERSION = "2.10.00" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -1722,7 +1733,7 @@ sub execMqsc
   # --------------------------------------------------------
   # CLIENT
   # --------------------------------------------------------
-  elsif( $type =~ 'SVRCONN' )
+  elsif( $type =~ /SVRCONN/ )
   {
     my $_chl = disChl( $rd, $wr, 'SVRCONN', $obj, $os );
     return $_chl unless defined $_chl ;
@@ -1730,6 +1741,35 @@ sub execMqsc
     my $_chs = disChs(  $rd, $wr, 'SVRCONN', $obj, $os );
 
      $_obj = &joinChStat($_chl, $_chs );
+  }
+  # --------------------------------------------------------
+  # QMGR
+  # --------------------------------------------------------
+  elsif( $type eq 'QMGR' )
+  {
+    $_obj = disQmStat( $rd, $wr, $os );
+  }
+  # --------------------------------------------------------
+  # LISTENER
+  # --------------------------------------------------------
+  elsif( $type eq 'LISTENER' )
+  {
+    my $_lst = disList( $rd, $wr, $obj, $os) ;
+    return $_lst unless defined $_lst ;
+
+    my $_lss = disLisStat( $rd, $wr, $obj, $os) ;
+    $_obj = &joinLsStat($_lst, $_lss );
+  }
+  # --------------------------------------------------------
+  # SERVICE
+  # --------------------------------------------------------
+  elsif( $type eq 'SERVICE' )
+  {
+    my $_srv = disServ( $rd, $wr, $obj, $os) ;
+    return $_srv unless defined $_srv ;
+
+    my $_srs = disServStat( $rd, $wr, $obj, $os) ;
+    $_obj = &joinLsStat($_srv, $_srs );
   }
 
   return $_obj ;    # other object types can be added
@@ -1790,6 +1830,31 @@ sub joinChStat
 }
 
 ################################################################################
+# join listener information and status
+################################################################################
+sub joinLsStat
+{
+  my $_lst = $_[0] ;
+  my $_lss = $_[1] ;
+
+  my $_inactive->{STATUS}   = 'INACTIVE' ;
+
+  my $_l = {};
+
+  foreach my $l (keys %$_lst)
+  {
+    unless( exists $_lss->{$l} )
+    {
+      push @{$_lss->{$l}}, $_inactive ;
+    }
+    my $_objRef = mergeHash( @{$_lst->{$l}}[0],
+                             @{$_lss->{$l}}[0] );
+    push @{$_l->{$l}}, $_objRef ;
+  }
+  return $_l;
+}
+
+################################################################################
 # parse mqsc 
 ################################################################################
 sub parseMqsc 
@@ -1824,16 +1889,21 @@ sub parseMqsc
         warn "$line\n" ;                 #
         next;                            #
       }                                  #
-      if( $amq eq 'AMQ8409' ||           # Display Queue details.   AMQ8407
+      if( $amq eq 'AMQ8409' ||           # Display Queue details.   
           $amq eq 'AMQ8417' ||           # Display Channel Status details.
           $amq eq 'AMQ8450' ||           # Display queue status details.
           $amq eq 'AMQ8414' ||           # Display Channel details.
-          $amq eq 'AMQ8420'  )           # Channel Status not found ???
+          $amq eq 'AMQ8420' ||           # Channel Status not found ???
+          $amq eq 'AMQ8705' ||           # Display Queue Manager Status Details
+          $amq eq 'AMQ8630' ||           # Display listener information details.
+          $amq eq 'AMQ8631' ||           # Display listener status details.
+          $amq eq 'AMQ8629' ||           # Display service information details.
+          $amq eq 'AMQ8632'  )           # Display service status details.
       {                                  #
         $obj = undef;                    #
         next;                            #
       }                                  #
-      warn "uknown MQ reason line\n";    #
+      warn "unknown MQ reason $amq: line";    #
     }                                    #
                                          #
     next if $line =~ /^\s*$/ ;           # ignore empty lines
@@ -1982,9 +2052,11 @@ sub disChs
   my $parse = $_[3];
   my $os    = $_[4];
 
-  my $chl ;
-  my $conn ;
-  my $_chl ;
+
+# next time you see next 3 lines->delete them
+# my $chl ;
+# my $conn ;
+# my $_chl ;
 
   print $wr "display chs($parse) all where ( CHLTYPE eq $type)\n" ;
   print $wr "ping qmgr\n" if $os eq 'UNIX' ;
@@ -1992,6 +2064,84 @@ sub disChs
   return parseMqsc $rd, $os ;
 }
 
+################################################################################
+# dis qmstatus all
+################################################################################
+sub disQmStat
+{ 
+  my $rd = $_[0];
+  my $wr = $_[1];
+  my $os = $_[2];
+
+  print $wr "display qmstatus all\n" ;
+  print $wr "ping qmgr\n" if $os eq 'UNIX' ;
+
+  return parseMqsc $rd, $os ;
+}
+
+################################################################################
+# dis listener all
+################################################################################
+sub disList
+{
+  my $rd    = $_[0] ;
+  my $wr    = $_[1] ;
+  my $parse = $_[2] ;
+  my $os    = $_[3] ;
+
+  print $wr "display listener($parse) all\n" ;
+  print $wr "ping qmgr\n" if $os eq 'UNIX' ;
+
+  return parseMqsc $rd, $os ;
+} 
+
+################################################################################
+# dis lsstatus all
+################################################################################
+sub disLisStat 
+{
+  my $rd    = $_[0] ;
+  my $wr    = $_[1] ;
+  my $parse = $_[2] ;
+  my $os    = $_[3] ;
+
+  print $wr "display lsstatus($parse) all\n" ;
+  print $wr "ping qmgr\n" if $os eq 'UNIX' ;
+
+  return parseMqsc $rd, $os ;
+} 
+
+################################################################################
+# dis service all type server
+################################################################################
+sub disServ
+{
+  my $rd    = $_[0] ;
+  my $wr    = $_[1] ;
+  my $parse = $_[2] ;
+  my $os    = $_[3] ;
+
+  print $wr "display service($parse) where ( servtype eq server ) all\n" ;
+  print $wr "ping qmgr\n" if $os eq 'UNIX' ;
+
+  return parseMqsc $rd, $os ;
+} 
+
+################################################################################
+# dis lsstatus all
+################################################################################
+sub disServStat
+{
+  my $rd    = $_[0] ;
+  my $wr    = $_[1] ;
+  my $parse = $_[2] ;
+  my $os    = $_[3] ;
+
+  print $wr "display svstatus($parse) all\n" ;
+  print $wr "ping qmgr\n" if $os eq 'UNIX' ;
+
+  return parseMqsc $rd, $os ;
+} 
 
 ################################################################################
 # evaluate state
@@ -2054,7 +2204,7 @@ sub evalStat
               {                                      #
                 $_stAttr->{$attr}{monitor} = $_mon ; #
                 $_stAttr->{$attr}{level} = $levRc;   #
-                next;                                #
+            #   next;                                #
               }                                      #
               if( exists $_ign->{$app}{$qmgr}{$type} #   full exists fehlt
                                 {$obj}{$attr}      ) #
@@ -2236,6 +2386,11 @@ sub cmpTH
   if( $op eq '=' )
   {
     return 1 if  $val eq $th;
+    return 0;
+  }
+  if( $op eq '!' )
+  {
+    return 1 if  $val ne $th;
     return 0;
   }
 }
