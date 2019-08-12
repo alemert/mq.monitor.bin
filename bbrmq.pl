@@ -120,8 +120,6 @@
 #                       functions( disQmStat, disList, disLisStat, joinLsStat,
 #                       disServ, disServStat )
 #                       cmpTH operator ! introduced
-=======
->>>>>>> ddb965155481b3a0dbba10780fbd43642149db12
 ################################################################################
 
 use strict ;
