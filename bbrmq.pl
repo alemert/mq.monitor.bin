@@ -120,6 +120,9 @@
 #                       functions( disQmStat, disList, disLisStat, joinLsStat,
 #                       disServ, disServStat )
 #                       cmpTH operator ! introduced
+# 19.08.2019 2.10.01 am call logger() from main, logger $par undefined bug
+#                       info column in xymon introduced
+#                       info key in xymon send stanza
 ################################################################################
 
 use strict ;
@@ -145,7 +148,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.00" ;
+my $VERSION = "2.10.01" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -382,8 +385,15 @@ sub logger
      $time =~ s/ /0/g;
 
   my $src  =  [caller(0)]->[1] ; 
-  my $par  =  [caller(1)]->[3] ;
-     $par  =~ s/^\w+?::// ;
+  my $par  =  [caller(1)]->[3] ;   #parent
+  if( defined $par )
+  {
+    $par  =~ s/^\w+?::// ;
+  }
+  else
+  {
+    $par = 'main' ;
+  }
   my $line =  [caller(0)]->[2] ; 
 
   $LF = $ENV{HOME}.'/monitor/log/bbrmq.'.$day.'.'.$$.'.log' ;
@@ -485,6 +495,7 @@ sub newHash
 ################################################################################
 sub sendSigHup
 {
+  logger();
   foreach my $line (`ps --no-headers -e -o pid,fuid,comm`)
   {
     chomp $line ;
@@ -504,6 +515,7 @@ sub sendSigHup
 ################################################################################
 sub sigInt()
 {
+  logger();
   &sigHup() ;
 }
 
@@ -512,6 +524,7 @@ sub sigInt()
 ################################################################################
 sub sigHup()
 {
+  logger();
   foreach my $qmgr ( keys %$_conn)
   {
     next if $_conn->{$qmgr}{PID} == 0 ;
@@ -3127,11 +3140,21 @@ sub printMsg
           my $srv  = $_app->{$app}{qmgr}{$qmgr}           #
                                   {type}{$type}           #
                                   {send}{xymon}{service}; #
+          my $info ;                                      #
+          if( exists $_app->{$app}{qmgr}{$qmgr}           #
+                                  {type}{$type}           #
+                                  {send}{xymon}{info} )   #
+          {                                               #
+            $info = $_app->{$app}{qmgr}{$qmgr}            #
+                                 {type}{$type}            #
+                                 {send}{xymon}{info}      #
+          }                                               #
           my ($xymMsg,$lev) = &xymonMsg( $app    ,        #
                                          $qmgr   ,        #
                                          $type   ,        #
                                          $_glb   ,        #
-                                         $_stat->{$app}); # 
+                                         $_stat->{$app},  #
+                                         $info  )      ;  # 
                                                           #
           $xymMsg="<a name=\"$qmgr-$type\"></a>".$xymMsg; #
           $xymMsg{$host}{$srv}{msg}.= $xymMsg ;           #
@@ -3314,6 +3337,7 @@ sub xymonMsg
   my $type    = $_[2] ;
   my $_glb    = $_[3] ;
   my $_stat   = $_[4] ;
+  my $info    = $_[5] ;
 
   logger();
 
@@ -3327,6 +3351,10 @@ sub xymonMsg
                                                                    #
   $msg .= "<table><thead><tr>\n";                                  #
   $msg .= "  <th></th><th align=\"center\" class=\"head\">$type</th>\n";
+  if( defined $info && $info eq 'yes' )
+  {
+    $msg .= "  <th class=\"head\"> </th>\n";   # (i) placeholder
+  }
   foreach my $attr ( sort keys %{$_glb->{type}{$type}{attr}} )
   {
     next unless exists $_glb->{type}{$type}{attr}{$attr}{format} ;
@@ -3359,7 +3387,7 @@ sub xymonMsg
         $ignAttr .= $attr.'('.$value.'/'.$LEV{$level}.'),';
       }
 
-      my $link = $sysUrl.'/ignore.cgi?appl='.$appl.
+      my $ignLink = $sysUrl.'/ignore.cgi?appl='.$appl.
                                     '&qmgr='.$qmgr.
                                     '&type='.$type.
                                     '&obj='.$obj ;
@@ -3367,15 +3395,22 @@ sub xymonMsg
       if( defined $ignAttr )
       { 
         $ignAttr =~ s/,$//;
-        $link .= '&attr='.$ignAttr ;
+        $ignLink .= '&attr='.$ignAttr ;
       }
 
       $msg .= "<td valign=\"bottom\">$color</td>\n";
       $msg .= "<td valign=\"baseline\">\n";
-      $msg .= "  <a id=\"$obj\" onclick=\"javascript:location.href=\'$link&url=\'";
+      $msg .= "  <a id=\"$obj\" onclick=\"javascript:location.href=\'$ignLink&url=\'";
       $msg .= ".concat(location.host).concat(location.pathname).concat('&').concat(location.search.substring(1));\" >$obj</a>\n";
       $msg .= "</td>\n";
-   
+ 
+      if( defined $info && $info eq 'yes' )
+      {
+        my $infoLink = $sysUrl."/info.cgi?qmgr=$qmgr&type=$type&obj=$obj" ; 
+        $msg .= "  <td><a id=\"$obj\" onclick=\"javascript:location.href=\'$infoLink&url=\'";
+        $msg .= ".concat(location.host).concat(location.pathname).concat('&').concat(location.search.substring(1));\" >(i)</a></td>\n";
+      }
+ 
       foreach my $attr ( sort keys %{$_glb->{type}{$type}{attr}} )
       {
         next unless exists $_glb->{type}{$type}{attr}{$attr}{format} ;
@@ -3664,6 +3699,7 @@ sub sendPatrol
 #   M A I N   
 #
 ################################################################################
+logger() ;
 
 if( $gRun == $STOP )
 {
