@@ -18,6 +18,14 @@ foreach my $dir ( glob "$ssldir/*/" )
   my $err = 0 ;
   my $war = 0 ;
   my $lev = "&green" ;
+
+  my $dt = (time() - (stat ("$dir/chain"))[9]) ;
+     $dt /= (3600*24) ;
+  if( $dt > 31 )
+  {
+    $msg = "&red files on $dir to old\n\n";
+    $err++;
+  }
   open DATA, "$dir/xymon" ;
   foreach my $line (<DATA>)
   {
