@@ -17,6 +17,7 @@ my %MONTH;
    $MONTH{Jun} = 5 ;
    $MONTH{Aug} = 7 ;
    $MONTH{Nov} = 10 ;
+   $MONTH{Dec} = 11 ;
 
 my $ssldir = "/var/www/data/ssl" ;
 
@@ -110,7 +111,7 @@ foreach my $qmgr ( keys %CFG )
         warn "unknown month $month" unless exists $MONTH{$month} ;
         my $mm = 0;
         $mm = $MONTH{$month} if exists $MONTH{$month} ;
-        my $epochTime = timelocal(0, 0, 0, $dd, $mm, $yyyy );
+        my $epochTime = timelocal(0, 0, 12, $dd, $mm, $yyyy );
         my $timeDiff = $epochTime - time() ;
         my $day = $timeDiff/3600/24 ;
         my $lev = 'OK' ;
