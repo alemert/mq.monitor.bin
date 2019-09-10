@@ -123,6 +123,11 @@
 # 19.08.2019 2.10.01 am call logger() from main, logger $par undefined bug
 #                       info column in xymon introduced
 #                       info key in xymon send stanza
+# 26.08.2019 2.10.02 am check time, return ON only at the end of the function
+#                         check time only worked by random, depending 
+#                         on keys sequnece
+# 27.08.2019 2.10.03 am disQmgrAlias rmoved from bbrmq.pl, sub from lib should
+#                         be used
 ################################################################################
 
 use strict ;
@@ -148,7 +153,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.01" ;
+my $VERSION = "2.10.03" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -2024,18 +2029,18 @@ sub disQs
 ################################################################################
 # display queue manager aliases
 ################################################################################
-sub disQmgrAlias
-{
-  my $rd    = $_[0];
-  my $wr    = $_[1];
-  my $parse = $_[2];
-  my $os    = $_[3];
+# sub disQmgrAlias
+# {
+#   my $rd    = $_[0];
+#   my $wr    = $_[1];
+#   my $parse = $_[2];
+#   my $os    = $_[3];
 
-  print $wr "display qremote($parse) where ( rname eq '' )\n" ;
-  print $wr "ping qmgr\n" if $os eq 'UNIX' ;
-
-  return parseMqsc $rd, $os ;
-}
+#   print $wr "display qremote($parse) where ( rname eq '' )\n" ;
+#   print $wr "ping qmgr\n" if $os eq 'UNIX' ;
+# 
+#   return parseMqsc $rd, $os ;
+# }
 
 ################################################################################
 # display (list) sender 
@@ -2289,28 +2294,31 @@ sub evalStat
                     exists $_ign->{$app}{$qmgr}{$type}{$obj}{$cmb} ) 
                 {                                    #
                   $_stObj->{attr}{$cmb}{ignore} = $TIG ;
-                  $ignRc = $TIG ;
+                  $ignRc = $TIG ;                    #
                 }                                    #
+
+                if( exists $_stObj->{attr}{$cmb}{ignore} )
+                { 
+                  $ign++ if $_stObj->{attr}{$cmb}{ignore} == $IGN ;
+                  $tig++ if $_stObj->{attr}{$cmb}{ignore} == $TIG ;
+                }
                                                      #
                 if( $matchCnt == scalar keys %{$_cmb->{$cmb}{match}} )
                 {                                    #
                   my $lev = &lev2id( $_cmb->{$cmb}{result} );
                   $_stObj->{attr}{$cmb}{level}=$lev; #
-                  if( defined $ignRc )
-                  { 
-                    $tig++ if $lev == $TIG;            #
-                    $ign++ if $lev == $IGN;            #
-                    next ;
+                  unless( exists $_stObj->{attr}{$cmb}{ignore} )
+                  {
+                    $war++ if $lev == $WAR;            #
+                    $err++ if $lev == $ERR;            #
                   }
-                  $war++ if $lev == $WAR;            #
-                  $err++ if $lev == $ERR;            #
                 }                                    #
               }                                      #
             }                                        #
                                                      #
             $_stObj->{level}=$OK;                    #
-            $_stObj->{level}=$IGN if $ign > 0 ;      #
             $_stObj->{level}=$TIG if $tig > 0 ;      #
+            $_stObj->{level}=$IGN if $ign > 0 ;      #
             $_stObj->{level}=$WAR if $war > 0 ;      #
             $_stObj->{level}=$ERR if $err > 0 ;      #
           }
@@ -3036,12 +3044,16 @@ sub checkMonTime
     {                                  #
       if( $stop < $start )             # do not monitor during an interval
       {                                #
-        return $ON  if $time < $stop ; # monitor from 00:00 until stop time
-        return $ON  if $time > $start; # monitor from start time until 23:59
+        next       if $time < $stop  ; # monitor from 00:00 until stop time
+        next       if $time > $start ; # monitor from start time until 23:59
+      # return $ON if $time < $stop  ; # monitor from 00:00 until stop time
+      # return $ON if $time > $start ; # monitor from start time until 23:59
         return $OFF ;                  # don't monitor during interval
       }                                #
-      return $ON if( $time > $start && # monitor during an interval
-                     $time < $stop  ); #
+      next if( $time > $start &&       # monitor during an interval
+               $time < $stop  );       #
+    # return $ON if( $time > $start && # monitor during an interval
+    #                $time < $stop  ); #
       return $OFF;                     # don't monitor outside an interval
     }                                  #
                                        #
