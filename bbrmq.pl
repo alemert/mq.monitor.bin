@@ -128,6 +128,8 @@
 #                         on keys sequnece
 # 27.08.2019 2.10.03 am disQmgrAlias rmoved from bbrmq.pl, sub from lib should
 #                         be used
+# 10.09.2019 2.10.04 am only allowed cmd attributes possible
+#                       code cleanup
 ################################################################################
 
 use strict ;
@@ -153,7 +155,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.03" ;
+my $VERSION = "2.10.04" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -290,6 +292,10 @@ while( defined $ARGV[0] )
     elsif( $mainAttr eq 'dbg' )
     {
       $gRun = $DBG ;
+    }
+    else
+    {
+      &usage();
     }
 
     shift @ARGV ;
@@ -1200,24 +1206,15 @@ sub expandHash
             foreach my $attr (keys %{$_cfg->{global}{type}{$type}{$item}})
             {
               next if exists $_cfg->{app}{$app}{type}{$type}{$item}{$attr} ; 
-              $_cfg->{app}{$app}{type}{$type}{$item}{$attr} =  $_cfg->{app}{$app}{type}{$type}{$item}{$attr}; 
+              $_cfg->{app}{$app}{type}{$type}{$item}{$attr} = 
+                $_cfg->{app}{$app}{type}{$type}{$item}{$attr};
             } 
           }
           next;
         }
-        $_cfg->{$app}{$app}{type}{$type}{$item} = $_cfg->{global}{type}{$type}{$item};
+        $_cfg->{$app}{$app}{type}{$type}{$item} = 
+                                         $_cfg->{global}{type}{$type}{$item};
       }
-#     if( exists $_cfg->{global}{type}{$type}{parse} &&
-#         !exists $_cfg->{$app}{$app}{type}{$type}{parse} )
-#     {
-#       $_cfg->{$app}{$app}{type}{$type}{parse} = $_cfg->{global}{type}{$type}{parse} ;
-#     }
-
-#     if( exists $_cfg->{global}{type}{$type}{exclude} &&
-#         !exists $_cfg->{$app}{$app}{type}{$type}{exclude} )
-#     {
-#       $_cfg->{$app}{$app}{type}{$type}{exclude} = $_cfg->{global}{type}{$type}{exclude} ;
-#     }
     }
   }
 
@@ -1242,8 +1239,6 @@ sub expandHash
           {
             $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type} = $_typeApp->{$type};
           }
-        # else
-        # {
           foreach my $item (keys %{$_typeApp->{$type}})
           {
             if( exists $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{$item} )
@@ -1252,13 +1247,21 @@ sub expandHash
               {
                 foreach my $attr (keys %{$_typeApp->{$type}{$item}} )
                 {
-                  next if exists $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{$item}{$attr} ; 
-                  $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{$item}{$attr} = $_typeApp->{$type}{$item}{$attr} ;
+                  next if exists $_cfg->{app}{$app}
+                                        {qmgr}{$qmgr}
+                                        {type}{$type}
+                                          {$item}{$attr} ; 
+                  $_cfg->{app}{$app}
+                         {qmgr}{$qmgr}
+                         {type}{$type}
+                           {$item}{$attr} = $_typeApp->{$type}{$item}{$attr} ;
                 }
               }
               next;
             }
-            $_cfg->{app}{$app}{qmgr}{$qmgr}{type}{$type}{$item} = $_typeApp->{$type}{$item} ;
+            $_cfg->{app}{$app}
+                   {qmgr}{$qmgr}
+                   {type}{$type}{$item} = $_typeApp->{$type}{$item} ;
           }
         }
       }
@@ -1398,28 +1401,27 @@ sub connQmgr
         }                                           #
         next ;                                      #
       }                                             #
-
-      $_conn->{$qmgr}{PID} = $pid;
-      if( $pid == 0 )
-      {
-        $_conn->{$qmgr}{RETRY}++ ;
-        next ;
-      }
-      my $rd = $_conn->{$qmgr}{RD} ;
-      my $wr = $_conn->{$qmgr}{WR} ;
-      my $platform = &getPlatform( $_conn->{$qmgr} );
-      unless( defined $platform )
-      {
-        warn "no connection to $qmgr \n" ;
-        close $rd;
-        close $wr;
-        waitpid $pid, &WNOHANG ;
-        $_conn->{$qmgr}{PID} = 0;
-        $_conn->{$qmgr}{RETRY}++ ;
-        usleep 100000 ;
-      }
-      $_conn->{$qmgr}{OS} = $platform ;
-
+                                                    #
+      $_conn->{$qmgr}{PID} = $pid;                  #
+      if( $pid == 0 )                               #
+      {                                             #
+        $_conn->{$qmgr}{RETRY}++ ;                  #
+        next ;                                      #
+      }                                             #
+      my $rd = $_conn->{$qmgr}{RD} ;                #
+      my $wr = $_conn->{$qmgr}{WR} ;                #
+      my $platform = &getPlatform($_conn->{$qmgr}); #
+      unless( defined $platform )                   #
+      {                                             #
+        warn "no connection to $qmgr \n" ;          #
+        close $rd;                                  #
+        close $wr;                                  #
+        waitpid $pid, &WNOHANG ;                    #
+        $_conn->{$qmgr}{PID} = 0;                   #
+        $_conn->{$qmgr}{RETRY}++ ;                  #
+        usleep 100000 ;                             #
+      }                                             #
+      $_conn->{$qmgr}{OS} = $platform;              #
     }
   }
 }
@@ -2027,22 +2029,6 @@ sub disQs
 }
 
 ################################################################################
-# display queue manager aliases
-################################################################################
-# sub disQmgrAlias
-# {
-#   my $rd    = $_[0];
-#   my $wr    = $_[1];
-#   my $parse = $_[2];
-#   my $os    = $_[3];
-
-#   print $wr "display qremote($parse) where ( rname eq '' )\n" ;
-#   print $wr "ping qmgr\n" if $os eq 'UNIX' ;
-# 
-#   return parseMqsc $rd, $os ;
-# }
-
-################################################################################
 # display (list) sender 
 ################################################################################
 sub disChl
@@ -2296,22 +2282,22 @@ sub evalStat
                   $_stObj->{attr}{$cmb}{ignore} = $TIG ;
                   $ignRc = $TIG ;                    #
                 }                                    #
-
+                                                     #
                 if( exists $_stObj->{attr}{$cmb}{ignore} )
-                { 
+                {                                    #
                   $ign++ if $_stObj->{attr}{$cmb}{ignore} == $IGN ;
                   $tig++ if $_stObj->{attr}{$cmb}{ignore} == $TIG ;
-                }
+                }                                    #
                                                      #
                 if( $matchCnt == scalar keys %{$_cmb->{$cmb}{match}} )
                 {                                    #
                   my $lev = &lev2id( $_cmb->{$cmb}{result} );
                   $_stObj->{attr}{$cmb}{level}=$lev; #
                   unless( exists $_stObj->{attr}{$cmb}{ignore} )
-                  {
-                    $war++ if $lev == $WAR;            #
-                    $err++ if $lev == $ERR;            #
-                  }
+                  {                                  #
+                    $war++ if $lev == $WAR;          #
+                    $err++ if $lev == $ERR;          #
+                  }                                  #
                 }                                    #
               }                                      #
             }                                        #
@@ -3022,8 +3008,6 @@ sub checkMonTime
         $DAY = 0 if $wd > $last ; 
       }
   
-  #   delete $_time->{$id}{day} if $_time->{$id}{day} eq '*' ;
-  
       my @day ;
       if( $_time->{$id}{day} =~ /,/ )
       {
@@ -3062,8 +3046,8 @@ sub checkMonTime
                                        #
     return $OFF if( defined $stop &&   # only stop defined, don't monitor late
                     $time > $stop );   #  in the evening
-  }
-  return $ON ;                       # 
+  }                                    #
+  return $ON ;                         # 
  
 }
 
@@ -3182,8 +3166,11 @@ sub printMsg
             $xymMsg{$host}{$srv}{level} = $lev;           #
           }                                               #
           else                                            #
-          {                                               #
-            $xymMsg{$host}{$srv}{level}=$lev if $lev>$xymMsg{$host}{$srv}{level};
+          {                                               # 
+            if( $lev>$xymMsg{$host}{$srv}{level} )        #
+            {                                             #
+              $xymMsg{$host}{$srv}{level}=$lev ;          #
+            }                                             #
           }                                               #
         }                                                 #
                                                           #
@@ -3355,8 +3342,8 @@ sub xymonMsg
 
   my $rcLevel = $OK ;
 
-  my $msg  = " <div>".$xymonCss;                                   #
-  $msg.="<table class=\"top\"><tr>" ;                              # table header
+  my $msg  = " <div>".$xymonCss;                                   # table
+  $msg.="<table class=\"top\"><tr>" ;                              #   header
   $msg.="<td class=\"top\"><hr></td><td class =\"top\">$qmgr</td>";# qmgr
   $msg.="<td class=\"top\"><hr></td><td class =\"top\">$type</td>";# type
   $msg.="<td class=\"top\"><hr></td></tr></table>\n";              #
@@ -3489,7 +3476,6 @@ sub xymonMsg
 ################################################################################
 sub mailMsg
 {
-# my $appl    = $_[0] ;
   my $qmgr    = $_[0] ;
   my $type    = $_[1] ;
   my $_glb    = $_[2] ;
@@ -3504,11 +3490,9 @@ sub mailMsg
     foreach my $_objInst (@{$_stat->{$qmgr}{$type}{$obj}})
     {
       next if $_objInst->{level} == $IGN ;
-  #   my @line = ($obj) ;
       my $objErr=0; 
       foreach my $attr ( sort keys %{$_glb->{type}{$type}{attr}} )
       {
-  #     push @line, $_objInst->{attr}{$attr}{value} ;
         next unless exists $_objInst->{attr}{$attr}{level} ;
         if( $_objInst->{attr}{$attr}{level} == $ERR )
         {
@@ -3669,7 +3653,6 @@ sub sendPatrol
     $txtLev = 'CRITICAL' ;
   }
 
-# my $patrolObj = "$attr:$qmgr\@$obj-$type" ;
   my $patrolParam = "$type\@$obj:$attr" ;
   my $txtMsg    = "$txtLev for $attr = $value on $qmgr\@$obj";
 
@@ -3677,7 +3660,6 @@ sub sendPatrol
   {
     if( defined $fileTime )
     {
-#     system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
       system "$patrol -c $class -s $txtLev -o \"$qmgr\" -p \"$patrolParam\" -m \"$txtMsg \" ";
       my $rc =  $?>>8 ;
       unlink $patrolFile if $rc == 0 ; 
@@ -3694,7 +3676,6 @@ sub sendPatrol
     }
     else
     {
-#     system "$patrol -c $class -s $txtLev -o \"$patrolObj\" -m \"$txtMsg \" ";
       system "$patrol -c $class -s $txtLev -o \"$qmgr\" -p \"$patrolParam\" -m \"$txtMsg \" ";
       my $rc =  $?>>8 ;
       if( $rc == 0 )
@@ -3815,5 +3796,4 @@ while( 1 )
   }
   sleep 300 ;
 }
-
 
