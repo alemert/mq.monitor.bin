@@ -130,6 +130,7 @@
 #                         be used
 # 10.09.2019 2.10.04 am only allowed cmd attributes possible
 #                       code cleanup
+# 15.09.2019 2.10.05 am cmdln bbrmq.pl -ignore ... bug solved 
 ################################################################################
 
 use strict ;
@@ -155,7 +156,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.04" ;
+my $VERSION = "2.10.05" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -272,6 +273,23 @@ while( defined $ARGV[0] )
     if( $mainAttr eq 'ignore' )
     {
       $gRun = $IGNORE ;
+      if( defined $ARGV[1] && $ARGV[1] !~ /^-/ )
+      {
+        $gIgnShow = $ARGV[1] ;
+        if( $gIgnShow eq 'err' )
+        {
+          $gIgnShow = $ERR ;
+        }
+        elsif( $gIgnShow eq 'war' )
+        {
+          $gIgnShow = $WAR ;
+        }
+        else
+        {
+          &usage() ;
+        }
+        shift @ARGV;
+      }
     }
     elsif( $mainAttr eq 'list' )
     {
@@ -293,6 +311,42 @@ while( defined $ARGV[0] )
     {
       $gRun = $DBG ;
     }
+    elsif( $mainAttr eq 'appl' )
+    {
+      &usage() unless defined $ARGV[1] ;
+      $gIgnAppl = $ARGV[1] ;
+      shift;
+    }
+    elsif( $mainAttr eq 'qmgr' )
+    {
+      &usage() unless defined $ARGV[1] ;
+      $gIgnQmgr = $ARGV[1];
+      shift ; 
+    }
+    elsif( $mainAttr eq 'type' )
+    {
+      &usage() unless defined $ARGV[1] ;
+      $gIgnType = $ARGV[1];
+      shift @ARGV; 
+    }
+    elsif( $mainAttr eq 'obj' )
+    {
+      &usage() unless defined $ARGV[1] ;
+      $gIgnObj = $ARGV[1];
+      shift @ARGV; 
+    }
+    elsif( $mainAttr eq 'attr' )
+    {
+      &usage() unless defined $ARGV[1] ;
+      $gIgnAttr = $ARGV[1] ;
+      shift @ARGV;
+    }
+    elsif( $mainAttr eq 'time' )
+    {
+      &usage() unless defined $ARGV[1] ;
+      $gIgnTime = $ARGV[1] ;
+      shift @ARGV;
+    }
     else
     {
       &usage();
@@ -302,68 +356,6 @@ while( defined $ARGV[0] )
     next ;
   }
 
-  if( $mainAttr eq 'appl' )
-  {
-    &usage() if defined $gIgnAppl ;
-    $gIgnAppl = $ARGV[0] ;
-    shift;
-    next;
-  }
-
-  if( $mainAttr eq 'qmgr' )
-  {
-    &usage() if defined $gIgnQmgr ;
-    $gIgnQmgr = $ARGV[0];
-    shift ; 
-    next ;
-  }
-
-  if( $mainAttr eq 'type' )
-  {
-    $gIgnType = $ARGV[0];
-    shift @ARGV; 
-    next ;
-  }
-
-  if( $mainAttr eq 'obj' )
-  {
-    $gIgnObj = $ARGV[0];
-    shift @ARGV; 
-    next ;
-  }
-
-  if( $mainAttr eq 'ignore' )
-  {
-    my $ignShow = $ARGV[0] ;
-    if( $ignShow eq 'err' )
-    {
-      $gIgnShow = $ERR ;
-    }
-    elsif( $ignShow eq 'war' )
-    {
-      $gIgnShow = $WAR ;
-    }
-    else
-    {
-      &usage() ;
-    }
-    shift @ARGV;
-    next ;
-  }
-
-  if( $mainAttr eq 'attr' )
-  {
-    $gIgnAttr = $ARGV[0] ;
-    shift @ARGV;
-    next ;
-  }
-
-  if( $mainAttr eq 'time' )
-  {
-    $gIgnTime = $ARGV[0] ;
-    shift @ARGV;
-    next ;
-  }
 
   &usage() ;
 }
