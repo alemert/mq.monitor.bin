@@ -6,6 +6,52 @@
 #
 #  Description:
 #
+#  Notes:
+#    following HTML Style is needed in xymonmq.css
+#      table.top { width:100%; } 
+#      td.top {
+#        width:100px;       text-align:center; 
+#        padding-left:5px;  padding-right:5px;}
+#      th.head {
+#        text-align:left;}
+#      td.left { 
+#        text-align:left;  
+#        padding-left:5px;  padding-right:5px; }
+#      td.right {
+#         text-align:right;
+#         padding-left:5px; padding-right:5px; }
+#      td.center { 
+#        text-align:right; 
+#        padding-left:5px;  padding-right:5px; }
+#      td.na { 
+#        background-color:DimGray; color:white; 
+#        padding-left:5px;         padding-right:5px; }
+#      td.ok {
+#        background-color:green;   color:black; 
+#        padding-left:5px;         padding-right:5px; }
+#      td.war     { 
+#       background-color:yellow;   color:black; 
+#        padding-left:5px;         padding-right:5px; }
+#      td.err     {
+#        background-color:Crimson; color:white; 
+#        padding-left:5px;         padding-right:5px; }
+#      td.ign     {
+#        background-color:blue;    color:white; 
+#        padding-left:5px;         padding-right:5px; }
+#      td.tig     {
+#        background-color:WhiteSmoke; color:black; 
+#        padding-left:5px;            padding-right:5px; }
+#      td.org-ok  {
+#        border:4px solid green;  
+#        padding-left:5px;         padding-right:5px; }
+#      td.org-war {
+#        border:4px solid yellow; 
+#        padding-left:5px;         padding-right:5px; }
+#      td.org-err {
+#        border:4px solid red;    
+#        padding-left:5px;     padding-right:5px; }
+#  hostsvc_header needs a link to xymonmq.css
+#
 #  Functions:
 #    - logger          2.05.00   
 #    - logfdc          2.05.00  
@@ -131,6 +177,7 @@
 # 10.09.2019 2.10.04 am only allowed cmd attributes possible
 #                       code cleanup
 # 15.09.2019 2.10.05 am cmdln bbrmq.pl -ignore ... bug solved 
+# 18.09 2019 2.10.06 am css moved to xymonmq.css;output in IE & Chrome improved 
 ################################################################################
 
 use strict ;
@@ -156,7 +203,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.05" ;
+my $VERSION = "2.10.06" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -202,29 +249,7 @@ my $RESTART = 2;
 my $IGNORE  = 3;
 my $DBG  = 4;
 
-my $headerFormat = "  <hr class=\"top\"> @|||||||||| <hr class=\"top\"> @|||||||||| <hr class=\"top\" >\n" ;
 my $levelFormat  = "|@>|";
-
-my $xymonCss = "
-<style type=\"text/css \">
-  td { padding-left:5px; padding-right:5px }
-  table.top { width:100%; } 
-  td.top {width:100px; text-align:center; }
-  th.head {text-align:left;}
-  td.left    { text-align:left;  }
-  td.right   { text-align:right; }
-  td.center  { text-align:right; }
-  td.na      { background-color:DimGray;    color:white; }
-  td.ok      { background-color:green;      color:black; }
-  td.war     { background-color:yellow;     color:black; }
-  td.err     { background-color:Crimson;    color:white; }
-  td.ign     { background-color:blue;       color:white; }
-  td.tig     { background-color:WhiteSmoke; color:black; }
-  td.org-ok  { border:4px solid green;  }
-  td.org-war { border:4px solid yellow; }
-  td.org-err { border:4px solid red;    }
-</style> 
-" ;
 
 ################################################################################
 #   G L O B A L S  
@@ -3334,7 +3359,8 @@ sub xymonMsg
 
   my $rcLevel = $OK ;
 
-  my $msg  = " <div>".$xymonCss;                                   # table
+# my $msg  = " <div>".$xymonCss;                                   # table
+  my $msg  = " <div>" ;                                            # table
   $msg.="<table class=\"top\"><tr>" ;                              #   header
   $msg.="<td class=\"top\"><hr></td><td class =\"top\">$qmgr</td>";# qmgr
   $msg.="<td class=\"top\"><hr></td><td class =\"top\">$type</td>";# type
