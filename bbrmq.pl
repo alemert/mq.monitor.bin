@@ -62,6 +62,7 @@
 #    - usage           2.00.02
 #    - listCfg         2.00.02
 #    - setTmpIgn       2.00.02
+#    - setTmpEnable    2.10.07
 #    - getTmpIgn       2.00.03
 #    - printHash       2.00.00   (for dbg only)    
 #    - getCfg          2.00.00
@@ -178,6 +179,7 @@
 #                       code cleanup
 # 15.09.2019 2.10.05 am cmdln bbrmq.pl -ignore ... bug solved 
 # 18.09 2019 2.10.06 am css moved to xymonmq.css;output in IE & Chrome improved 
+# 20.09 2019 2.10.07 devl enable monitoring
 ################################################################################
 
 use strict ;
@@ -203,7 +205,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.06" ;
+my $VERSION = "2.10.07.dev" ;
 
 ################################################################################
 #   L I B R A R I E S
@@ -243,11 +245,13 @@ my %LEV = ( $NA   => 'NA',
 
 my $TMP = "/home/mqm/monitor/flag" ;
 
+my $DOWN    = -99 ;
 my $START   = 0;
 my $STOP    = 1;
 my $RESTART = 2;
 my $IGNORE  = 3;
-my $DBG  = 4;
+my $ENABLE  = 4;
+my $DBG     = 99;
 
 my $levelFormat  = "|@>|";
 
@@ -278,7 +282,8 @@ $SIG{INT} = \&sigInt ;
 my $mainAttr ;
 #my $gIgnore = 0 ;
 my $gList   = 0 ;
-my $gRun   = $START ;   # start / stop / restart
+my $gRun     ;
+my $gDbg     = $DOWN ;
 my $gIgnQmgr ;
 my $gIgnType ;
 my $gIgnAppl ;
@@ -288,99 +293,203 @@ my $gIgnAttr ;
 my $gIgnTime ;
 my $argc = scalar @ARGV ;
 
+# ------------------------------------------------------------------------------
+# no arguments is not allowed
+# ------------------------------------------------------------------------------
 &usage() unless scalar @ARGV > 0 ;
 
+# ------------------------------------------------------------------------------
+# go through all arguments
+# ------------------------------------------------------------------------------
 while( defined $ARGV[0] )
 {
+  my $opt ;
+
+  # --------------------------------------------------------  
+  #  opt starts with -  
+  # --------------------------------------------------------  
   if( $ARGV[0] =~ s/^-// )
   {
-    $mainAttr = $ARGV[0] ;
-    if( $mainAttr eq 'ignore' )
+    $opt = $ARGV[0] ;
+  } 
+
+  # --------------------------------------------------------  
+  # ignore ( main attribute)
+  # --------------------------------------------------------  
+  if( $opt eq 'ignore' )
+  {
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt;
+    $gRun = $IGNORE ;
+    if( defined $ARGV[1] && $ARGV[1] !~ /^-/ )
     {
-      $gRun = $IGNORE ;
-      if( defined $ARGV[1] && $ARGV[1] !~ /^-/ )
+      shift @ARGV ;
+      $gIgnShow = $ARGV[0] ;
+      if( $gIgnShow eq 'err' )
       {
-        $gIgnShow = $ARGV[1] ;
-        if( $gIgnShow eq 'err' )
-        {
-          $gIgnShow = $ERR ;
-        }
-        elsif( $gIgnShow eq 'war' )
-        {
-          $gIgnShow = $WAR ;
-        }
-        else
-        {
-          &usage() ;
-        }
-        shift @ARGV;
+        $gIgnShow = $ERR ;
+      }
+      elsif( $gIgnShow eq 'war' )
+      {
+        $gIgnShow = $WAR ;
+      }
+      else
+      {
+        &usage() ;
       }
     }
-    elsif( $mainAttr eq 'list' )
-    {
-      $gList = 1 ;
-    }
-    elsif( $mainAttr eq 'stop' )
-    {
-      $gRun = $STOP ;
-    }
-    elsif( $mainAttr eq 'start' )
-    {
-      $gRun = $START ;
-    }
-    elsif( $mainAttr eq 'restart' )
-    {
-      $gRun = $RESTART ;
-    }
-    elsif( $mainAttr eq 'dbg' )
-    {
-      $gRun = $DBG ;
-    }
-    elsif( $mainAttr eq 'appl' )
-    {
-      &usage() unless defined $ARGV[1] ;
-      $gIgnAppl = $ARGV[1] ;
-      shift;
-    }
-    elsif( $mainAttr eq 'qmgr' )
-    {
-      &usage() unless defined $ARGV[1] ;
-      $gIgnQmgr = $ARGV[1];
-      shift ; 
-    }
-    elsif( $mainAttr eq 'type' )
-    {
-      &usage() unless defined $ARGV[1] ;
-      $gIgnType = $ARGV[1];
-      shift @ARGV; 
-    }
-    elsif( $mainAttr eq 'obj' )
-    {
-      &usage() unless defined $ARGV[1] ;
-      $gIgnObj = $ARGV[1];
-      shift @ARGV; 
-    }
-    elsif( $mainAttr eq 'attr' )
-    {
-      &usage() unless defined $ARGV[1] ;
-      $gIgnAttr = $ARGV[1] ;
-      shift @ARGV;
-    }
-    elsif( $mainAttr eq 'time' )
-    {
-      &usage() unless defined $ARGV[1] ;
-      $gIgnTime = $ARGV[1] ;
-      shift @ARGV;
-    }
-    else
-    {
-      &usage();
-    }
-
-    shift @ARGV ;
+    shift @ARGV;
     next ;
   }
 
+  # --------------------------------------------------------  
+  # enable monitoring ( main attribute )
+  #   ignore temporary and persistent disabeling
+  # --------------------------------------------------------  
+  if( $opt eq 'enable' )
+  {
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt ;
+    $gRun = $ENABLE ;
+    shift @ARGV;
+    next ;
+  }
+
+  # --------------------------------------------------------  
+  # list configuration ( main attribute )
+  # --------------------------------------------------------  
+  if( $opt eq 'list' )
+  {
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt;
+    $gList = 1 ;
+    shift @ARGV;
+    next ;
+  }
+
+  # --------------------------------------------------------  
+  # stop monitoring ( main attribute )
+  # --------------------------------------------------------  
+  if( $opt eq 'stop' )
+  {
+    $gRun = $STOP ;
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt;
+    shift @ARGV;
+    next ;
+  }
+
+  # --------------------------------------------------------  
+  # start monitoring ( main attribute )
+  # --------------------------------------------------------  
+  if( $opt eq 'start' )
+  {
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt;
+    $gRun = $START ;
+    shift @ARGV;
+    next ;
+  }
+
+  # --------------------------------------------------------  
+  # restart monitoring ( main attribute )
+  # --------------------------------------------------------  
+  if( $opt eq 'restart' )
+  {
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt;
+    $gRun = $RESTART ;
+    shift @ARGV;
+    next ;
+  }
+
+  # --------------------------------------------------------  
+  # debug monitoring 
+  #  main attributes, other main attributes are allowed 
+  # --------------------------------------------------------  
+  if( $opt eq 'dbg' )
+  {
+    $mainAttr = $opt;
+    $gDbg = $DBG ;
+    shift @ARGV;
+    next ;
+  }
+
+  # --------------------------------------------------------  
+  # optional attributes with main attribute:
+  #  ignore
+  # --------------------------------------------------------  
+  if( $mainAttr eq 'ignore' )
+  {
+    shift @ARGV ;
+    # ----------------------------------
+    # applicaiton name
+    # ----------------------------------
+    if( $opt eq 'appl' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gIgnAppl = $ARGV[0] ;
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
+    # qmgr name
+    # ----------------------------------
+    if( $opt eq 'qmgr' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gIgnQmgr = $ARGV[0];
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
+    # mq object type name
+    # ----------------------------------
+    if( $opt eq 'type' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gIgnType = $ARGV[0];
+      shift @ARGV; 
+      next;
+    }
+
+    # ----------------------------------
+    # mq object name or object parse
+    # ----------------------------------
+    if( $opt eq 'obj' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gIgnObj = $ARGV[0];
+      shift @ARGV; 
+      next;
+    }
+
+    # ----------------------------------
+    # mq object attribute name
+    # ----------------------------------
+    if( $opt eq 'attr' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gIgnAttr = $ARGV[0] ;
+      shift @ARGV;
+      next;
+    }
+
+    # ----------------------------------
+    # time to ignore
+    # ----------------------------------
+    if( $opt eq 'time' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gIgnTime = $ARGV[0] ;
+      shift @ARGV;
+      next;
+    }
+
+    &usage();
+  }
 
   &usage() ;
 }
@@ -928,6 +1037,13 @@ sub setTmpIgn
     close FD;                            #
     utime time(), $epochIgnTime, $file;  # set the time stamp in the future
   }                                      #
+}
+
+################################################################################
+# set temporary enable
+################################################################################
+sub setTmpEnable
+{
 }
 
 ################################################################################
@@ -3359,7 +3475,8 @@ sub xymonMsg
 
   my $rcLevel = $OK ;
 
-# my $msg  = " <div>".$xymonCss;                                   # table
+#  my $disableIgnore = getDisableXymIgnore( $appl, $qmgr, $type) ;
+
   my $msg  = " <div>" ;                                            # table
   $msg.="<table class=\"top\"><tr>" ;                              #   header
   $msg.="<td class=\"top\"><hr></td><td class =\"top\">$qmgr</td>";# qmgr
@@ -3443,7 +3560,7 @@ sub xymonMsg
         $format="right"  if $_glb->{type}{$type}{attr}{$attr}{format} =~ /^@>/ ;
         $format="center" if $_glb->{type}{$type}{attr}{$attr}{format} =~ /^@\|/;
   
-        next unless exists $_objInst->{attr}{$attr}{value} ;
+      # next unless exists $_objInst->{attr}{$attr}{value} ;
         $value = $_objInst->{attr}{$attr}{value} ;
   
         if( exists $_objInst->{attr}{$attr}{level} )
@@ -3454,7 +3571,12 @@ sub xymonMsg
         {
           $ignore = $_objInst->{attr}{$attr}{ignore} ;
         }
-  
+ 
+# ANPASSEN
+#  welche werte kan $ignore haben, 
+#  wenn monitoring ENABLED, ignoriere ignore
+#  ignore kann folgende werte besitzen: TIG, IGN, undef
+ 
         my $color = "na" ;
         my $border = '';
         if( defined $level )
@@ -3806,8 +3928,12 @@ while( 1 )
     printMsg $_stat, $_cfg, $_format ;
     last ;
   }
+  if( $gRun == $ENABLE )
+  {
+    setTmpEnable $_cfg ;
+  }
   printMsg $_stat, $_cfg, $_format ;
-  if( $gRun == $DBG  )
+  if( $gDbg == $DBG  )
   {
     sleep 5;
     next ;
