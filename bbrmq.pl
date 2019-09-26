@@ -4,8 +4,10 @@
 #
 #  xymon remote mq monitoring
 #
+#  -----------------------------------------------------------------------------
 #  Description:
 #
+#  -----------------------------------------------------------------------------
 #  Notes:
 #    following HTML Style is needed in xymonmq.css
 #      table.top { width:100%; } 
@@ -52,6 +54,7 @@
 #        padding-left:5px;     padding-right:5px; }
 #  hostsvc_header needs a link to xymonmq.css
 #
+#  -----------------------------------------------------------------------------
 #  Functions:
 #    - logger          2.05.00   
 #    - logfdc          2.05.00  
@@ -64,6 +67,7 @@
 #    - setTmpIgn       2.00.02
 #    - setTmpEnable    2.10.07
 #    - getTmpIgn       2.00.03
+#    - getTmpEnb       2.10.07
 #    - printHash       2.00.00   (for dbg only)    
 #    - getCfg          2.00.00
 #    - xml2hash        2.00.00
@@ -103,6 +107,7 @@
 #    - mailMsg         2.06.00
 #    - sendMail        2.06.00
 #
+#  -----------------------------------------------------------------------------
 #  History
 #  28.10.2016 2.00.00 am Initial Version
 #  15.11.2016 2.00.01 am getMonHash bugs solved
@@ -180,6 +185,7 @@
 # 15.09.2019 2.10.05 am cmdln bbrmq.pl -ignore ... bug solved 
 # 18.09 2019 2.10.06 am css moved to xymonmq.css;output in IE & Chrome improved 
 # 20.09 2019 2.10.07 devl enable monitoring
+#
 ################################################################################
 
 use strict ;
@@ -208,20 +214,26 @@ use qmgr ;
 my $VERSION = "2.10.07.dev" ;
 
 ################################################################################
+#
 #   L I B R A R I E S
+#
 ################################################################################
 use FileHandle ;           # for file handel as object
 use IPC::Open2 ;           # for runmqsc starting in the background
 
 ################################################################################
+#
 #   E N V I R O N M E N T   
+#
 ################################################################################
 delete $ENV{MQPROMPT} if exists $ENV{MQPROMPT}; 
 
 my $sysUrl = "https://".hostname().".deutsche-boerse.de/mqmon" ;
 
 ################################################################################
+#
 #   C O N S T A N T S  
+#
 ################################################################################
 my $ON  = 1 ;
 my $OFF = 0 ;
@@ -256,7 +268,9 @@ my $DBG     = 99;
 my $levelFormat  = "|@>|";
 
 ################################################################################
+#
 #   G L O B A L S  
+#
 ################################################################################
 my $cfg = "/home/mqm/monitor/ini/mqmon.ini" ;
 my $runmqsc = "/opt/mqm/90a/bin/runmqsc -e " ;
@@ -270,27 +284,38 @@ my $_conn ;  # $_conn has to be global so it can be used in the signal handler
 my $LF ;     # logger file name
 
 ################################################################################
+#
 #   S I G N A L S  
+#
 ################################################################################
 
 $SIG{HUP} = \&sigHup ;
 $SIG{INT} = \&sigInt ;
 
 ################################################################################
+#
 #   C O M M A N D   L I N E   
+#
 ################################################################################
 my $mainAttr ;
-#my $gIgnore = 0 ;
+
 my $gList   = 0 ;
 my $gRun     ;
 my $gDbg     = $DOWN ;
+
+my $gIgnAppl ;
 my $gIgnQmgr ;
 my $gIgnType ;
-my $gIgnAppl ;
 my $gIgnObj ;
 my $gIgnShow ;
 my $gIgnAttr ;
 my $gIgnTime ;
+
+my $gEnbAppl = 'all' ;    # Enable all per default
+my $gEnbQmgr = 'all' ;    # Enable all per default
+my $gEnbType = 'all' ;    # Enable all per default
+my $gEnbTime = 3600  ;    # Default Enable is one hour
+
 my $argc = scalar @ARGV ;
 
 # ------------------------------------------------------------------------------
@@ -416,8 +441,8 @@ while( defined $ARGV[0] )
   }
 
   # --------------------------------------------------------  
-  # optional attributes with main attribute:
-  #  ignore
+  # optional attributes with 
+  #   main attribute: ignore
   # --------------------------------------------------------  
   if( $mainAttr eq 'ignore' )
   {
@@ -488,6 +513,56 @@ while( defined $ARGV[0] )
       next;
     }
 
+    # ----------------------------------
+    # all other -> print usage & quit
+    # ----------------------------------
+    &usage();
+  }
+
+  # --------------------------------------------------------  
+  # optional attributes with 
+  #   main attribute: enable
+  # --------------------------------------------------------  
+  if( $mainAttr eq 'enable' )
+  {
+    shift @ARGV ;
+
+    # ----------------------------------
+    # applicaiton name
+    # ----------------------------------
+    if( $opt eq 'appl' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gEnbAppl = $ARGV[0] ;
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
+    # queue manager name
+    # ----------------------------------
+    if( $opt eq 'qmgr' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gEnbQmgr = $ARGV[0] ;
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
+    # object type name
+    # ----------------------------------
+    if( $opt eq 'type' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gEnbQmgr = $ARGV[0] ;
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
+    # all other -> print usage & quit
+    # ----------------------------------
     &usage();
   }
 
@@ -693,19 +768,21 @@ bbmq.pl -ignore [err] -appl {APPL} -qmgr {QMGR} -type {TYPE} -obj {OBJECT} \
                       -attr {ATTR|all|err} -time {TIME}
   -ignore          set the object to ignore temporary list
   -ignore err      show only non-green objects 
-  -appl   {APPL}   show only objects for application {APPL}
-  -qmgr   {QMGR}   show only object on queue manager {QMGR}
-  -type   {TYPE}   show only objects of type {TYPE}
-  -obj    {OBJECT} show only objects matching {OBJECT}
-  -attr   {ATTR}   set only attribute {ATTR} to ignore
-  -attr   err      set only non-green attributes to ignore
-  -attr   all      set all attributes to ignore
-  -time   {TIME}   time to ignore: time can have following formats
+    -appl {APPL}   ignore only objects for application {APPL}
+    -qmgr {QMGR}   ignore only object on queue manager {QMGR}
+    -type {TYPE}   ignore only objects of type {TYPE}
+    -obj  {OBJECT} ignore only objects matching {OBJECT}
+    -attr {ATTR}   set only attribute {ATTR} to ignore
+    -attr err      set only non-green attributes to ignore
+    -attr all      set all attributes to ignore
+    -time {TIME}   time to ignore: time can have following formats
           n[dhm]   ignore for next n [d]ays [h]ours [m]minutes
           hh:mm    ignore until time (today)
           MM-DD hh:mm ignore until Date-Time (this year)
           YYYY-MM-DD hh:mm ignore until Date-Time
-  
+ 
+bbmq.pl -enable -appl {APPL|all} -qmgr {QMGR|all} -type {TYPE|all} 
+ 
 bbmq.pl -list
   -list list the configuration
  
@@ -1044,6 +1121,67 @@ sub setTmpIgn
 ################################################################################
 sub setTmpEnable
 {
+  my $_app = $_[0]->{app} ;
+  my $_stat = $_[1] ;
+
+  my $file = $TMP ;
+
+  if( $gEnbAppl eq 'all' )                  # enable all application
+  {                                         #
+    $gEnbQmgr = 'all' ;                     #
+  }                                         #
+  else                                      # enable only one application
+  {                                         #
+    unless( exists $_app->{$gEnbAppl} )     # handle non-existing application
+    {                                       #
+      print "$gEnbAppl doesn't exists\n" ;  #
+      print "  use one of: \n";             #
+      foreach my $app ( sort keys %$_app )  #
+      {                                     #
+        print "    $app\n";                 #
+      }                                     #
+      die ;                                 #
+    }                                       #
+  }                                         #
+                                            #
+  if( $gEnbQmgr eq 'all' )                  # enable all queue manager for 
+  {                                         #  application $gEnbAppl
+    $gEnbType = 'all' ;                     #
+  }                                         #
+  else                                      # enable only one qmgr
+  {                                         #
+    unless( exists $_stat->{$gEnbAppl}{$gEnbQmgr} )
+    {                                       # handle non-existing qmgr
+      print "$gEnbQmgr doesn't exists\n" ;  #
+      print "  use one of: \n";             #
+      foreach my $qmgr ( sort keys %{$_stat->{$gEnbAppl}} ) 
+      {                                     #
+        print "    $qmgr\n";                #
+      }                                     #
+      die ;                                 #
+    }                                       #
+  }                                         #
+                                            #
+  $file .= '/enable-'.$gEnbAppl.'-'.$gEnbQmgr.'-'.$gEnbType ; 
+                                            # 
+  print "
+Enabling monitoring for: 
+  Application\t$gEnbAppl
+  Queue Manager\t$gEnbQmgr
+  Object Type\t$gEnbType
+
+  for next $gEnbTime seconds
+
+  is this ok [Y/N] : ";                     #
+                                            #
+  my $anwser = <STDIN> ; chomp $anwser ;    #
+  die unless uc($anwser) eq 'Y' ;           #
+                                            #
+  print $file ;                             #
+                                            #
+  open FD, ">$file" ;                       #
+  close FD;                                 #
+  utime time(), time() + $gEnbTime, $file;  # set the time stamp in the future
 }
 
 ################################################################################
@@ -1083,6 +1221,63 @@ sub getTmpIgn
   closedir TMP ;
 
   return $_ign ;
+}
+
+################################################################################
+# get temporary enable
+################################################################################
+sub getTmpEnb
+{
+  my $_enb ;
+
+  logger() ;
+
+  opendir TMP, $TMP ;
+  
+  foreach my $file (readdir TMP)
+  {
+    next unless $file =~ /^enable-
+                           (\w+)-    # application
+                           (\w+)-    # queue manager
+                           (\w+)$/x; # type
+    my $appl = $1 ;
+    my $qmgr = $2 ;
+    my $type = $3 ;
+    my $time = (stat $TMP.'/'.$file)[9] ;
+
+    if( time() > $time )
+    {
+      unlink $TMP.'/'.$file ;
+      next ;
+    }
+    $_enb->{$appl}{$qmgr}{$type} = $time ;
+  }
+
+  close TMP ;
+
+  return $_enb ;
+}
+
+################################################################################
+# merge ignore & enable hash
+################################################################################
+sub mergeIgnEnb
+{
+  my $_ign = $_[0] ;
+  my $_enb = $_[1] ;
+
+  if( exists $_enb->{all} )
+  {
+    foreach my $app ( keys %$_ign )
+    {
+      delete $_ign->{$app} ;
+    }
+  }
+
+# foreach my keys (%$_enb)
+# {
+#   
+# }
 }
 
 ################################################################################
@@ -3913,13 +4108,13 @@ if( $gList == 1 )
   exit ;
 }
 
+
 while( 1 )
 {
   connQmgr $_cfg, $_conn, \@qmgrAlias ;
   $_stat = getObjState $_cfg, $_conn ;
   shrinkAttr $_cfg, $_stat ;
-  my $_ign = getTmpIgn ;
-  evalStat  $_cfg, $_stat, $_ign ;
+
   if( $gRun == $IGNORE )
   {
     setTmpIgn $_cfg, $_stat ;
@@ -3928,11 +4123,24 @@ while( 1 )
     printMsg $_stat, $_cfg, $_format ;
     last ;
   }
+
   if( $gRun == $ENABLE )
   {
-    setTmpEnable $_cfg ;
+    setTmpEnable $_cfg, $_stat ; 
+    my $_enb = getTmpEnb ;
+    my $_ign = getTmpIgn ;
+    mergeIgnEnb $_ign, $_enb ;
+    evalStat  $_cfg, $_stat, $_ign ;
+    printMsg $_stat, $_cfg, $_format ;
+    last ;
   }
+
+  my $_ign = getTmpIgn ;
+  my $_enb = getTmpEnb ;
+  evalStat  $_cfg, $_stat, $_ign ;
+  mergeIgnEnb $_ign, $_enb ;
   printMsg $_stat, $_cfg, $_format ;
+
   if( $gDbg == $DBG  )
   {
     sleep 5;
