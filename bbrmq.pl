@@ -1253,7 +1253,7 @@ sub getTmpEnb
     $_enb->{$appl}{$qmgr}{$type} = $time ;
   }
 
-  close TMP ;
+  closedir TMP ;
 
   return $_enb ;
 }
