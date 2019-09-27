@@ -101,6 +101,7 @@
 #    - calcRatio       2.04.00
 #    - getMonHash      2.00.00 
 #    - checkMonTime    2.00.00
+#    - enbIgn          2.10.07
 #    - tree2format     2.00.00
 #    - printMsg        2.00.04 
 #    - xymonMsg        2.00.03 
@@ -2484,6 +2485,7 @@ sub evalStat
   my $_glb = $_[0]->{global} ;
   my $_stat = $_[1] ; 
   my $_ign  = $_[2] ;
+  my $_enb  = $_[3] ;
 
   logger();
 
@@ -2520,6 +2522,13 @@ sub evalStat
                                                      #
               next unless defined $_mon;             # no monitoring hash found
                                                      # ->no monitoring for attr
+                                                     #
+              $ignRc = &enbIgn( $app    ,            #
+                                $qmgr   ,            #
+                                $type   ,            #
+                                $ignRc  ,            #
+                                $_enb   );           # dont use ignore field
+                                                     #   if monitoring enabled
               if( defined $ignRc )                   #
               {                                      #
                 next if $ignRc==$NA ;                #
@@ -3380,6 +3389,36 @@ sub checkMonTime
 }
 
 ################################################################################
+#  enabel ignore
+#   correct ignore flag depending on enable flag
+################################################################################
+sub enbIgn
+{
+  my $app  = $_[0] ;
+  my $qmgr = $_[1] ;
+  my $type = $_[2] ;
+  my $ign  = $_[3] ;
+  my $_enb = $_[4] ;
+
+  if( $ign == $NA  ||
+      $ign == $SHW ||
+      $ign == $OK   ) { return $ign ; }
+ 
+ 
+return $ign ;
+
+# $NA   = -2;
+# $SHW  = -1;
+# $OK   =  0;
+# $IGN  =  1;
+# $TIG  =  2; # temporary ignore
+# $WAR  =  3;
+# $ERR  =  4;
+
+return ;
+}
+
+################################################################################
 # tree to format
 #  convert tree to perl format statemant
 ################################################################################
@@ -4029,6 +4068,12 @@ sub sendPatrol
 ################################################################################
 logger() ;
 
+unless( defined $gRun )
+{
+  usage unless $gDbg == $DBG ;
+  $gRun = $DBG ; 
+}
+
 if( $gRun == $STOP )
 {
   sendSigHup() ;
@@ -4043,7 +4088,7 @@ if( $gRun == $RESTART )
 # ----------------------------------------------------------
 # start bbrmq.pl as a deamon / detach parent
 # ----------------------------------------------------------
-if( $argc == 0 || $gRun == $START || $gRun == $RESTART )
+if( $gRun == $START || $gRun == $RESTART )
 {
   my $pid = fork() ;
   exit 0 unless $pid == 0 ;
@@ -4119,7 +4164,7 @@ while( 1 )
   {
     setTmpIgn $_cfg, $_stat ;
     my $_ign = getTmpIgn ;
-    evalStat  $_cfg, $_stat, $_ign ;
+    evalStat  $_cfg, $_stat, $_ign, undef  ;
     printMsg $_stat, $_cfg, $_format ;
     last ;
   }
@@ -4130,14 +4175,14 @@ while( 1 )
     my $_enb = getTmpEnb ;
     my $_ign = getTmpIgn ;
     mergeIgnEnb $_ign, $_enb ;
-    evalStat  $_cfg, $_stat, $_ign ;
+    evalStat  $_cfg, $_stat, $_ign, $_enb ;
     printMsg $_stat, $_cfg, $_format ;
     last ;
   }
 
   my $_ign = getTmpIgn ;
   my $_enb = getTmpEnb ;
-  evalStat  $_cfg, $_stat, $_ign ;
+  evalStat  $_cfg, $_stat, $_ign, $_enb ;
   mergeIgnEnb $_ign, $_enb ;
   printMsg $_stat, $_cfg, $_format ;
 
