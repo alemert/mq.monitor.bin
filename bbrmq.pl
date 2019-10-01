@@ -562,6 +562,17 @@ while( defined $ARGV[0] )
     }
 
     # ----------------------------------
+    # object type name
+    # ----------------------------------
+    if( $opt eq 'time' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gIgnTime = $ARGV[0] ;
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
     # all other -> print usage & quit
     # ----------------------------------
     &usage();
@@ -1158,6 +1169,23 @@ sub setTmpEnable
       foreach my $qmgr ( sort keys %{$_stat->{$gEnbAppl}} ) 
       {                                     #
         print "    $qmgr\n";                #
+      }                                     #
+      die ;                                 #
+    }                                       #
+  }                                         #
+                                            #
+  if( $gEnbType eq 'all' )                  #
+  {                                         #
+  }                                         #
+  else                                      #
+  {                                         #
+    unless( exists $_stat->{$gEnbAppl}{$gEnbQmgr}{$gEnbType} )
+    {                                       #
+      print "$gEnbType doesn't exists\n" ;  #
+      print "  use one of: \n";             #
+      foreach my $type ( sort keys %{$_stat->{$gEnbAppl}{$gEnbQmgr}} )
+      {                                     #
+        print "    $type \n" ;              #
       }                                     #
       die ;                                 #
     }                                       #
@@ -3403,9 +3431,20 @@ sub enbIgn
   if( $ign == $NA  ||
       $ign == $SHW ||
       $ign == $OK   ) { return $ign ; }
+
+  return $ign unless defined $_enb ;
+  return $ign unless ref $_enb eq 'HASH' ;
+  return $ign unless scalar $_enb > 0 ;
+
+  return $SHW if exists $_enb->{all}  ;
+
+  if( exists $_enb->{$app} )
+  {
+    return $SHW if exists $_enb->{$app}{all}  ;
+  }
  
  
-return $ign ;
+  return $ign ;
 
 # $NA   = -2;
 # $SHW  = -1;
