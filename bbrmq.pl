@@ -185,7 +185,7 @@
 #                       code cleanup
 # 15.09.2019 2.10.05 am cmdln bbrmq.pl -ignore ... bug solved 
 # 18.09 2019 2.10.06 am css moved to xymonmq.css;output in IE & Chrome improved 
-# 20.09 2019 2.10.07 devl enable monitoring
+# 20.09 2019 2.10.07 am enable monitoring
 #
 ################################################################################
 
@@ -212,7 +212,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.07.dev" ;
+my $VERSION = "2.10.07" ;
 
 ################################################################################
 #
@@ -556,7 +556,7 @@ while( defined $ARGV[0] )
     if( $opt eq 'type' )
     {
       &usage() unless defined $ARGV[0] ;
-      $gEnbQmgr = $ARGV[0] ;
+      $gEnbType = $ARGV[0] ;
       shift @ARGV ;
       next;
     }
@@ -567,7 +567,7 @@ while( defined $ARGV[0] )
     if( $opt eq 'time' )
     {
       &usage() unless defined $ARGV[0] ;
-      $gIgnTime = $ARGV[0] ;
+      $gEnbTime = $ARGV[0] ;
       shift @ARGV ;
       next;
     }
@@ -1300,13 +1300,30 @@ sub mergeIgnEnb
     foreach my $app ( keys %$_ign )
     {
       delete $_ign->{$app} ;
-    }
+    }  
+    return ;
   }
 
-# foreach my keys (%$_enb)
-# {
-#   
-# }
+  foreach my $app (keys %$_enb)
+  {
+    if( exists $_enb->{$app}{all} )
+    {
+      delete $_ign->{$app} if exists $_ign->{$app} ;
+      return ;
+    }
+    foreach my $qmgr ( keys $_enb->{$app} )
+    {
+      if( exists $_enb->{$app}{$qmgr}{all} )
+      {
+        delete $_ign->{$app}{$qmgr} ;
+        return ;
+      }
+      foreach my $type ( keys $_enb->{$app}{$qmgr} )
+      {
+        delete $_ign->{$app}{$qmgr}{$type} ;
+      }
+    }
+  }
 }
 
 ################################################################################
@@ -3419,6 +3436,13 @@ sub checkMonTime
 ################################################################################
 #  enabel ignore
 #   correct ignore flag depending on enable flag
+#     $NA   = -2;
+#     $SHW  = -1;
+#     $OK   =  0;
+#     $IGN  =  1;
+#     $TIG  =  2; # temporary ignore
+#     $WAR  =  3;
+#     $ERR  =  4;
 ################################################################################
 sub enbIgn
 {
@@ -3441,20 +3465,15 @@ sub enbIgn
   if( exists $_enb->{$app} )
   {
     return $SHW if exists $_enb->{$app}{all}  ;
+
+    if( exists $_enb->{$app}{$qmgr} )
+    {
+      return $SHW if exists $_enb->{$app}{$qmgr}{all} ;
+      return $SHW if exists $_enb->{$app}{$qmgr}{$type} ;
+    }
   }
  
- 
   return $ign ;
-
-# $NA   = -2;
-# $SHW  = -1;
-# $OK   =  0;
-# $IGN  =  1;
-# $TIG  =  2; # temporary ignore
-# $WAR  =  3;
-# $ERR  =  4;
-
-return ;
 }
 
 ################################################################################
@@ -4221,8 +4240,8 @@ while( 1 )
 
   my $_ign = getTmpIgn ;
   my $_enb = getTmpEnb ;
-  evalStat  $_cfg, $_stat, $_ign, $_enb ;
   mergeIgnEnb $_ign, $_enb ;
+  evalStat  $_cfg, $_stat, $_ign, $_enb ;
   printMsg $_stat, $_cfg, $_format ;
 
   if( $gDbg == $DBG  )
