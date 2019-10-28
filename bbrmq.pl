@@ -63,6 +63,7 @@
 #    - sigInt()        2.03.00
 #    - sigHup()        2.03.00
 #    - usage           2.00.02
+#    - cleanUp         2.10.08
 #    - listCfg         2.00.02
 #    - setTmpIgn       2.00.02
 #    - setTmpEnable    2.10.07
@@ -186,6 +187,7 @@
 # 15.09.2019 2.10.05 am cmdln bbrmq.pl -ignore ... bug solved 
 # 18.09 2019 2.10.06 am css moved to xymonmq.css;output in IE & Chrome improved 
 # 20.09 2019 2.10.07 am enable monitoring
+# 28.10 2019 2.10.08 am cleanup old mail files (func clenUp added)
 #
 ################################################################################
 
@@ -212,7 +214,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.07" ;
+my $VERSION = "2.10.08" ;
 
 ################################################################################
 #
@@ -257,6 +259,7 @@ my %LEV = ( $NA   => 'NA',
 
 
 my $TMP = "/home/mqm/monitor/flag" ;
+my $MAIL_MAX_AGE =  2600000 ;  # app 1 Month
 
 my $DOWN    = -99 ;
 my $START   = 0;
@@ -803,6 +806,28 @@ than it will be taken automaticly.
  
 " ;
   die "\n" ;
+}
+
+################################################################################
+# cleanup / hause keeping
+# 
+# remove mail files older thean one month
+################################################################################
+sub cleanUp
+{
+  opendir TMP, $TMP ;
+  foreach my $file (readdir TMP)
+  {
+    next unless -f "$TMP/$file" ;
+    next if $file =~ /^mqLog\.\w+\.log$/ ;
+    my $age = time() - (stat "$TMP/$file")[9] ;
+    if( $file =~ /^mail-/ )
+    {
+      next if $age < $MAIL_MAX_AGE ;
+      print "removing $TMP/$file $age\n" ;
+      unlink "$TMP/$file" ;
+    }
+  }
 }
 
 ################################################################################
@@ -4156,6 +4181,11 @@ if( $gRun == $START || $gRun == $RESTART )
   }
 }
 
+
+# ----------------------------------------------------------
+# clean flag directory
+# ----------------------------------------------------------
+cleanUp();
 
 # ----------------------------------------------------------
 # read configuration
