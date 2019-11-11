@@ -115,7 +115,7 @@ sub processAmqLog
       next ;
     }
 
-    if( $line =~ /^(AMQ\d{4}):\s+(.*)$/ )
+    if( $line =~ /^(AMQ\d{4})\w?:\s+(.*)$/ )
     {
       $logId = $1 ;
       $logDscr  = $2 ;
