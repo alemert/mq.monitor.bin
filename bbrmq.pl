@@ -185,9 +185,10 @@
 # 10.09.2019 2.10.04 am only allowed cmd attributes possible
 #                       code cleanup
 # 15.09.2019 2.10.05 am cmdln bbrmq.pl -ignore ... bug solved 
-# 18.09 2019 2.10.06 am css moved to xymonmq.css;output in IE & Chrome improved 
-# 20.09 2019 2.10.07 am enable monitoring
-# 28.10 2019 2.10.08 am cleanup old mail files (func clenUp added)
+# 18.09.2019 2.10.06 am css moved to xymonmq.css;output in IE & Chrome improved 
+# 20.09.2019 2.10.07 am enable monitoring
+# 28.10.2019 2.10.08 am cleanup old mail files (func clenUp added)
+# 12.12.2019 2.10.09 am "))" in conname causes emtpy DESCR 
 #
 ################################################################################
 
@@ -214,7 +215,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.08" ;
+my $VERSION = "2.10.09" ;
 
 ################################################################################
 #
@@ -2350,7 +2351,7 @@ sub parseMqsc
         last if $line =~ /^CSQ9022I\s+/; # NORMAL COMPLETION
         if( $line =~ /CSQM297I\s+/ )     # no items found matching request
         {
-          warn "$line\n" ;
+        # warn "$line\n" ;
           next ;
         }
         last ;                           #
@@ -2360,7 +2361,7 @@ sub parseMqsc
     # ------------------------------------------------------
     # handle mqsc output
     # ------------------------------------------------------
-    while( $line =~ s/^\s*(\w+)(\((.*?)\))?\s*// )
+    while( $line =~ s/^\s*(\w+)(\((.*?)\)?\))?\s*// )
     {                                    #
       my $key   = $1 ;                   #
       my $value = $3 ;                   #
