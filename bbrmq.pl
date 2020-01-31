@@ -190,6 +190,10 @@
 # 28.10.2019 2.10.08 am cleanup old mail files (func clenUp added)
 # 12.12.2019 2.10.09 am "))" in conname causes emtpy DESCR 
 #
+# BUGS:
+#   sub cmpTH: check eq and nq first, > and < after it.
+#              in > < val is checked on digit, th not. th should be checked 
+#
 ################################################################################
 
 use strict ;
