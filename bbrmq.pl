@@ -189,6 +189,9 @@
 # 20.09.2019 2.10.07 am enable monitoring
 # 28.10.2019 2.10.08 am cleanup old mail files (func clenUp added)
 # 12.12.2019 2.10.09 am "))" in conname causes emtpy DESCR 
+# 20.02.2019 2.11.00 am introducing level: "early" for early warning, e.g. used for
+#                       longrty / shorty in channel monitoring to avoid yellow 
+#                       alerts on discint=0 after channel has been started
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -219,7 +222,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.09" ;
+my $VERSION = "2.11.00" ;
 
 ################################################################################
 #
@@ -246,19 +249,21 @@ my $sysUrl = "https://".hostname().".deutsche-boerse.de/mqmon" ;
 my $ON  = 1 ;
 my $OFF = 0 ;
 
-my $NA   = -2;
-my $SHW  = -1;
-my $OK   =  0;
-my $IGN  =  1;
-my $TIG  =  2; # temporary ignore
-my $WAR  =  3;
-my $ERR  =  4;
+my $NA    = -2;
+my $SHW   = -1;
+my $OK    =  0;
+my $IGN   =  1;
+my $TIG   =  2; # temporary ignore
+my $EARLY =  3; # early warning
+my $WAR   =  4;
+my $ERR   =  5;
 
 my %LEV = ( $NA   => 'NA', 
             $SHW  => 'SHW',
             $OK   => 'OK',
             $IGN  => 'IGN',
             $TIG  => 'TIG',
+            $EARLY  => 'EARLY',
             $WAR  => 'WAR',
             $ERR  => 'ERR' );
 
@@ -769,8 +774,8 @@ sub sigHup()
   {
     my $wr = $_conn->{$qmgr}{WR} ;
     my $rd = $_conn->{$qmgr}{RD} ;
-    close $wr ;
-    close $rd ;
+    close $wr || warn "error closing write pipe to $qmgr" ;
+    close $rd || warn "error closing read pipe from $qmgr" ;
     waitpid $_conn->{$qmgr}{PID}, &WNOHANG;
     $_conn->{$qmgr}{PID} = 0;
   }
@@ -2578,6 +2583,7 @@ sub evalStat
           foreach my $_stObj (@{$_stType->{$obj}})   #
           {                                          #
             my $_stAttr = $_stObj->{attr};           # 
+            my $early = 0;                           #
             my $war = 0;                             #
             my $err = 0;                             #
             my $ign = 0;                             #
@@ -2643,8 +2649,9 @@ sub evalStat
                   next;                              #
                 }                                    #
               }                                      #
-              $war++ if $levRc == $WAR;              #
-              $err++ if $levRc == $ERR;              #
+              $early++ if $levRc == $EARLY;          #
+              $war++   if $levRc == $WAR;            #
+              $err++   if $levRc == $ERR;            #
             }                                        #
                                                      #
             if( exists $_glb->{type}{$type} &&       # handle combined attribut
@@ -2707,8 +2714,9 @@ sub evalStat
                   $_stObj->{attr}{$cmb}{level}=$lev; #
                   unless( exists $_stObj->{attr}{$cmb}{ignore} )
                   {                                  #
-                    $war++ if $lev == $WAR;          #
-                    $err++ if $lev == $ERR;          #
+                    $early++ if $lev == $early;      #
+                    $war++   if $lev == $WAR;        #
+                    $err++   if $lev == $ERR;        #
                   }                                  #
                 }                                    #
               }                                      #
@@ -2717,6 +2725,7 @@ sub evalStat
             $_stObj->{level}=$OK;                    #
             $_stObj->{level}=$TIG if $tig > 0 ;      #
             $_stObj->{level}=$IGN if $ign > 0 ;      #
+            $_stObj->{level}=$OK if $early > 0 ;     # show early as OK
             $_stObj->{level}=$WAR if $war > 0 ;      #
             $_stObj->{level}=$ERR if $err > 0 ;      #
           }
@@ -2735,6 +2744,7 @@ sub evalAttr
   my $_mon  = $_[1] ;
 
   my $cntOk  = 0 ;
+  my $cntEarly = 0 ;
   my $cntWar = 0 ;
   my $cntErr = 0 ;
 
@@ -2742,17 +2752,19 @@ sub evalAttr
   {
     if( &cmpTH( $_attr, $th ) == 1 ) 
     {
-      if( $_mon->{$th} eq 'ok'  ) { $cntOk++ ; next; }
-      if( $_mon->{$th} eq 'war' ) { $cntWar++; next; }
-      if( $_mon->{$th} eq 'err' ) { $cntErr++; next; }
+      if( $_mon->{$th} eq 'ok'    ) { $cntOk++   ; next; }
+      if( $_mon->{$th} eq 'early' ) { $cntEarly++; next; }
+      if( $_mon->{$th} eq 'war'   ) { $cntWar++  ; next; }
+      if( $_mon->{$th} eq 'err'   ) { $cntErr++  ; next; }
       print "unknown level in \"sub evalAttr\"" ; 
     }
   }
   
   my $rc = $OK ;
-  $rc = $WAR if $cntWar > 0;
-  $rc = $ERR if $cntErr > 0;
-  $rc = $OK  if $cntOk  > 0;
+  $rc = $WAR    if $cntWar   > 0;
+  $rc = $ERR    if $cntErr   > 0;
+  $rc = $EARLY  if $cntEarly > 0;
+  $rc = $OK     if $cntOk    > 0;
 
   return $rc ;
 }
@@ -2962,6 +2974,7 @@ sub getMonHash
         $rcAttrTime = $OK ;
         if(exists $_app->{type}{$type}{attr}{$attr}{monitor}{err}||
            exists $_app->{type}{$type}{attr}{$attr}{monitor}{war}||
+           exists $_app->{type}{$type}{attr}{$attr}{monitor}{early}||
            exists $_app->{type}{$type}{attr}{$attr}{monitor}{ok}  )
         {
           $_mon = $_app->{type}{$type}{attr}{$attr}{monitor};
@@ -3092,6 +3105,8 @@ sub getMonHash
                 exists $_obj->{attr}{$attr}          #
                               {monitor}{war}||       #
                 exists $_obj->{attr}{$attr}          #
+                              {monitor}{early}||     #
+                exists $_obj->{attr}{$attr}          #
                               {monitor}{ok}  )       #
             {                                        #
               $_mon = $_obj->{attr}{$attr}           #
@@ -3192,6 +3207,7 @@ sub getMonHash
 #
         if(exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{err}||
            exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{war}||
+           exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{early}||
            exists $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor}{ok}  )
         {
           $_mon = $_app->{qmgr}{$qmgr}{type}{$type}{attr}{$attr}{monitor};
@@ -3904,6 +3920,7 @@ sub xymonMsg
         if( defined $level )
         {
           $color = "ok"  if $level == $OK  ;
+          $color = "ok"  if $level == $EARLY ;
           $color = "war" if $level == $WAR ;
           $color = "err" if $level == $ERR ;
         }
