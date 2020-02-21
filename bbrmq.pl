@@ -189,6 +189,7 @@
 # 20.09.2019 2.10.07 am enable monitoring
 # 28.10.2019 2.10.08 am cleanup old mail files (func clenUp added)
 # 12.12.2019 2.10.09 am "))" in conname causes emtpy DESCR 
+# 12.12.2019 2.10.10 am INITQ type added
 # 20.02.2019 2.11.00 am introducing level: "early" for early warning, e.g. used for
 #                       longrty / shorty in channel monitoring to avoid yellow 
 #                       alerts on discint=0 after channel has been started
@@ -2117,6 +2118,7 @@ sub execMqsc
   # --------------------------------------------------------
   if( $type eq 'QLOCAL'   ||
       $type eq 'mqQLOCAL' ||
+      $type eq 'INITQ'    ||
       $type eq 'DLQ'       )
   {
     my $_ql = disQl( $rd, $wr, $obj, $os );
