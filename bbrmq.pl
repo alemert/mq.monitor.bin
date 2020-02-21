@@ -189,10 +189,10 @@
 # 20.09.2019 2.10.07 am enable monitoring
 # 28.10.2019 2.10.08 am cleanup old mail files (func clenUp added)
 # 12.12.2019 2.10.09 am "))" in conname causes emtpy DESCR 
+# 12.12.2019 2.10.10 am INITQ type added
 #
 # BUGS:
-#   sub cmpTH: check eq and nq first, > and < after it.
-#              in > < val is checked on digit, th not. th should be checked 
+#   sub cmpTH: if th not numeric print warning
 #
 ################################################################################
 
@@ -219,7 +219,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.10.09" ;
+my $VERSION = "2.10.10" ;
 
 ################################################################################
 #
@@ -2112,6 +2112,7 @@ sub execMqsc
   # --------------------------------------------------------
   if( $type eq 'QLOCAL'   ||
       $type eq 'mqQLOCAL' ||
+      $type eq 'INITQ'    ||
       $type eq 'DLQ'       )
   {
     my $_ql = disQl( $rd, $wr, $obj, $os );
@@ -2790,18 +2791,6 @@ sub cmpTH
   my $op = $1 ;   # operator
   my $th = $2 ;   # trashhold
   
-  if( $op eq '<' )
-  {
-    return 0 unless $val =~ /^\d*$/ ;
-    return 1 if $val < $th;
-    return 0;
-  }
-  if( $op eq '>' )
-  {
-    return 0 unless $val =~ /^\d*$/ ;
-    return 1 if  $val > $th;
-    return 0;
-  }
   if( $op eq '=' )
   {
     return 1 if  $val eq $th;
@@ -2810,6 +2799,20 @@ sub cmpTH
   if( $op eq '!' )
   {
     return 1 if  $val ne $th;
+    return 0;
+  }
+  if( $op eq '<' )
+  {
+    return 0 unless $val =~ /^\d*$/ ;
+    return 0 unless $th =~ /^\d*$/ ;
+    return 1 if $val < $th;
+    return 0;
+  }
+  if( $op eq '>' )
+  {
+    return 0 unless $val =~ /^\d*$/ ;
+    return 0 unless $th =~ /^\d*$/ ;
+    return 1 if  $val > $th;
     return 0;
   }
 }
