@@ -193,6 +193,8 @@
 # 20.02.2019 2.11.00 am introducing level: "early" for early warning, e.g. used for
 #                       longrty / shorty in channel monitoring to avoid yellow 
 #                       alerts on discint=0 after channel has been started
+# 24.02.2019 2.11.01 am bug solved: temporary ignore for mails not taken 
+#                       into account 
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -223,7 +225,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.11.00" ;
+my $VERSION = "2.11.01" ;
 
 ################################################################################
 #
@@ -3971,6 +3973,7 @@ sub mailMsg
     foreach my $_objInst (@{$_stat->{$qmgr}{$type}{$obj}})
     {
       next if $_objInst->{level} == $IGN ;
+      next if $_objInst->{level} == $TIG ;
       my $objErr=0; 
       foreach my $attr ( sort keys %{$_glb->{type}{$type}{attr}} )
       {
