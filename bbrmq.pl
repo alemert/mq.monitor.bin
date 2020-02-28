@@ -198,6 +198,8 @@
 #                       into account 
 # 27.02.2019 2.12.00 am ping channel introduced
 #                       default treshold in evalAttr introduced
+# 28.02.2019 2.12.01 am ping chl on zos
+#                       dont ping running chl
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -228,7 +230,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.00" ;
+my $VERSION = "2.12.01" ;
 
 ################################################################################
 #
@@ -2076,9 +2078,19 @@ sub getObjState
               $goalInst->{STATUS} = $srcInst->{STATUS} ;
             }
 
-            ($goalInst->{PING},$goalInst->{TEXT})=pingChl( $_conn->{$qmgr}{RD},
-                                                           $_conn->{$qmgr}{WR},
-                                                           $obj );
+            if( $goalInst->{STATUS} eq 'RUNING' )
+            {
+              $goalInst->{PING} = 'OK' ;
+              $goalInst->{TEXT} = 'OK, channel running';
+            }
+            else
+            {
+              ( $goalInst->{PING},
+                $goalInst->{TEXT} ) = pingChl( $_conn->{$qmgr}{RD},
+                                               $_conn->{$qmgr}{WR},
+                                               $_conn->{$qmgr}{OS}, 
+                                               $obj );
+            }
             push @{$_state->{$app}{$qmgr}{PING}{$obj}},$goalInst; ;
             next ;
           }
@@ -2527,24 +2539,43 @@ sub pingChl
 {
   my $rd  = $_[0];
   my $wr  = $_[1];
-  my $chl = $_[2];
+  my $os  = $_[2];   # UNIX / MVS
+  my $chl = $_[3];
 
   my $pingRc ;
   my $txt    ;
 
   print $wr "ping channel($chl)\n" ;
-  print $wr "ping qmgr \n";
+  print $wr "ping qmgr \n" if $os eq 'UNIX' ;
 
   while( my $line=<$rd> )
   {
     chomp $line;                         #
     next if $line =~ /^\s*$/ ;           #
-    next unless $line =~ /^\s*(AMQ\d{4})\w?:(.+)/ ;
-    my $mqscRc = $1 ;
-    last if $mqscRc eq 'AMQ8415' ;  # ping qmgr
-    $pingRc = $mqscRc ;
-    $txt = $2;
-    last if $mqscRc eq 'AMQ8416' ;  # time out
+    if( $os eq 'UNIX' )
+    {
+      next unless $line =~ /^\s*(AMQ\d{4})\w?:(.+)/ ;
+      my $mqscRc = $1 ;
+      last if $mqscRc eq 'AMQ8415' ;  # ping qmgr
+      $pingRc = $mqscRc ;
+      $txt = $2;
+      last if $mqscRc eq 'AMQ8416' ;  # time out
+    }
+    elsif( $os eq 'MVS' )
+    {
+      if( $line =~ /^\s*AMQ8416: MQSC timed out waiting for a response from the command server./ )
+      {
+        $pingRc = 'AMQ8416';
+        $txt = 'MQSC timed out waiting for a response from the command server' ;
+        last ;
+      }
+      next unless $line =~ /^\s*(CSQ\w{5})\s+(.+)$/ ;
+      my $mqscRc = $1 ;
+      next if $mqscRc eq 'CSQN205I' ;
+      $pingRc = $mqscRc ;
+      $txt = $2;
+      last ;
+    }
   }
 
   return ($pingRc,$txt) ;
