@@ -190,11 +190,14 @@
 # 28.10.2019 2.10.08 am cleanup old mail files (func clenUp added)
 # 12.12.2019 2.10.09 am "))" in conname causes emtpy DESCR 
 # 12.12.2019 2.10.10 am INITQ type added
-# 20.02.2019 2.11.00 am introducing level: "early" for early warning, e.g. used for
-#                       longrty / shorty in channel monitoring to avoid yellow 
-#                       alerts on discint=0 after channel has been started
+# 20.02.2019 2.11.00 am introducing level: "early" for early warning, e.g. used 
+#                       for longrty / shorty in channel monitoring to avoid 
+#                       yellow alerts on discint=0 after channel has been 
+#                       started
 # 24.02.2019 2.11.01 am bug solved: temporary ignore for mails not taken 
 #                       into account 
+# 27.02.2019 2.12.00 am ping channel introduced
+#                       default treshold in evalAttr introduced
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -225,7 +228,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.11.01" ;
+my $VERSION = "2.12.00" ;
 
 ################################################################################
 #
@@ -1961,7 +1964,7 @@ sub getObjState
 {
   my $_cfg  = $_[0]->{app} ;
   my $_glb  = $_[0]->{global} ;
-  my $_conn = $_[1] ;
+  my $_conn = $_[1] ; 
   my $_state = {} ;
 
   logger();
@@ -1989,9 +1992,11 @@ sub getObjState
         next ;
       }
 
-      foreach my $type (keys %{$_type})
-      {
-        next if $type eq 'CONNECTION' ;
+      foreach my $type (keys %{$_type})    #
+      {                                    #
+        next if $type eq 'CONNECTION' ;    #
+        next if $type eq 'PING'       ;    #
+                                           #
         next unless exists $_type->{$type}{send} ;
         next unless exists $_type->{$type}{parse} ;
         next unless ref $_type->{$type}{parse} eq 'ARRAY';
@@ -2042,11 +2047,45 @@ sub getObjState
           {
             foreach my $obj (keys $_state->{$app}{$qmgr}{$type})
             {
-              delete $_state->{$app}{$qmgr}{$type}{$obj} unless $obj =~ /$keep/ ;
+              delete $_state->{$app}{$qmgr}{$type}{$obj} unless $obj=~/$keep/;
             }
           }
         }
       }
+      # ----------------------------------------------------
+      # handle type PING
+      # ----------------------------------------------------
+      next unless exists $_type->{PING};
+      next unless exists $_type->{PING}{send};
+
+      foreach my $type ('SDR', 'SVR')
+      {
+        next unless $_type->{$type}{send};
+        foreach my $obj ( keys %{$_state->{$app}{$qmgr}{$type}} )
+        {
+          foreach my $srcInst ( @{$_state->{$app}{$qmgr}{$type}{$obj}} )
+          {
+            my $goalInst ;
+            $goalInst->{CHLTYPE} = $type ;
+            unless( exists $srcInst->{STATUS} )
+            {
+              $goalInst->{STATUS} = 'INACTIVE' ;
+            }
+            else
+            {
+              $goalInst->{STATUS} = $srcInst->{STATUS} ;
+            }
+
+            ($goalInst->{PING},$goalInst->{TEXT})=pingChl( $_conn->{$qmgr}{RD},
+                                                           $_conn->{$qmgr}{WR},
+                                                           $obj );
+            push @{$_state->{$app}{$qmgr}{PING}{$obj}},$goalInst; ;
+            next ;
+          }
+        }
+      }
+      next;
+      # hier kommt type=PING
     }
   }
   return $_state ;
@@ -2482,6 +2521,37 @@ sub disChs
 }
 
 ################################################################################
+# ping channel
+################################################################################
+sub pingChl
+{
+  my $rd  = $_[0];
+  my $wr  = $_[1];
+  my $chl = $_[2];
+
+  my $pingRc ;
+  my $txt    ;
+
+  print $wr "ping channel($chl)\n" ;
+  print $wr "ping qmgr \n";
+
+  while( my $line=<$rd> )
+  {
+    chomp $line;                         #
+    next if $line =~ /^\s*$/ ;           #
+    next unless $line =~ /^\s*(AMQ\d{4})\w?:(.+)/ ;
+    my $mqscRc = $1 ;
+    last if $mqscRc eq 'AMQ8415' ;  # ping qmgr
+    $pingRc = $mqscRc ;
+    $txt = $2;
+    last if $mqscRc eq 'AMQ8416' ;  # time out
+  }
+
+  return ($pingRc,$txt) ;
+
+}
+
+################################################################################
 # dis qmstatus all
 ################################################################################
 sub disQmStat
@@ -2752,10 +2822,14 @@ sub evalAttr
   my $cntWar = 0 ;
   my $cntErr = 0 ;
 
+  my $rcCnt=0;
   foreach my $th (keys $_mon)
   {
-    if( &cmpTH( $_attr, $th ) == 1 ) 
+    next if $th eq 'default' ;
+    my $rc = &cmpTH( $_attr, $th ) ;
+    if( $rc == 1 ) 
     {
+      $rcCnt++;
       if( $_mon->{$th} eq 'ok'    ) { $cntOk++   ; next; }
       if( $_mon->{$th} eq 'early' ) { $cntEarly++; next; }
       if( $_mon->{$th} eq 'war'   ) { $cntWar++  ; next; }
@@ -2763,6 +2837,17 @@ sub evalAttr
       print "unknown level in \"sub evalAttr\"" ; 
     }
   }
+
+  if( $rcCnt == 0 &&
+      exists $_mon->{'default'} )
+  {
+    my $th = 'default' ;
+    if( $_mon->{$th} eq 'ok'    ) { $cntOk++   ; }
+    elsif( $_mon->{$th} eq 'early' ) { $cntEarly++; }
+    elsif( $_mon->{$th} eq 'war'   ) { $cntWar++  ; }
+    elsif( $_mon->{$th} eq 'err'   ) { $cntErr++  ; }
+  }
+  
   
   my $rc = $OK ;
   $rc = $WAR    if $cntWar   > 0;
@@ -3942,6 +4027,10 @@ sub xymonMsg
             $color = "tig" ;
             $border = 'org-'.$colorLevel if defined $level;
           }
+        }
+        unless( defined $value )
+        {
+          warn "value not set for $appl / $qmgr / $type / $obj / $attr " ;
         }
         $msg .= "<td class=\"$color $format $border\">$value</td>";
       }
