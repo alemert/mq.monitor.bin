@@ -2078,7 +2078,7 @@ sub getObjState
               $goalInst->{STATUS} = $srcInst->{STATUS} ;
             }
 
-            if( $goalInst->{STATUS} eq 'RUNING' )
+            if( $goalInst->{STATUS} eq 'RUNNING' )
             {
               $goalInst->{PING} = 'OK' ;
               $goalInst->{TEXT} = 'OK, channel running';
@@ -2092,12 +2092,9 @@ sub getObjState
                                                $obj );
             }
             push @{$_state->{$app}{$qmgr}{PING}{$obj}},$goalInst; ;
-            next ;
           }
         }
       }
-      next;
-      # hier kommt type=PING
     }
   }
   return $_state ;
@@ -2930,6 +2927,7 @@ sub cmpTH
   }
   if( $op eq '>' )
   {
+    warn "$val not numeric" unless $val =~ /^\d+$/ ;
     return 0 unless $val =~ /^\d*$/ ;
     return 1 if  $val > $th;
     return 0;
