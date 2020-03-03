@@ -200,6 +200,7 @@
 #                       default treshold in evalAttr introduced
 # 28.02.2019 2.12.01 am ping chl on zos
 #                       dont ping running chl
+# 02.03.2019 2.12.02 am OK as ping status not working, solved
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -230,7 +231,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.01" ;
+my $VERSION = "2.12.03" ;
 
 ################################################################################
 #
@@ -2566,12 +2567,17 @@ sub pingChl
         $txt = 'MQSC timed out waiting for a response from the command server' ;
         last ;
       }
-      next unless $line =~ /^\s*(CSQ\w{5})\s+(.+)$/ ;
-      my $mqscRc = $1 ;
-      next if $mqscRc eq 'CSQN205I' ;
-      $pingRc = $mqscRc ;
-      $txt = $2;
-      last ;
+      next unless $line =~ /^\s*(CSQ\w{5})\s+(\w+)\s+(\w+)\s+(\.+)$$/ ;
+      my $mqscRc   = $1;
+      my $mqscQmgr = $2;
+      my $mqscCmd  = $3;
+      my $mqscTxt  = $4;
+      last if $mqscCmd eq 'CSQXCRPS' ;
+      if( $mqscRc eq 'CSQXCRPS' )
+      {
+        $pingRc = $mqscRc ;
+         $txt   = $mqscTxt ; 
+      }
     }
   }
 
