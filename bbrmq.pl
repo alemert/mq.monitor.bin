@@ -201,6 +201,10 @@
 # 28.02.2019 2.12.01 am ping chl on zos
 #                       dont ping running chl
 # 02.03.2019 2.12.02 am OK as ping status not working, solved
+# 05.03.2019 2.12.03 am cmpTH undefine / format err
+#                       FORMAT match to ERR level introduced
+#                       print FORMAT err to STDOUT
+#                       pingChl MVS bugs solved
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -258,23 +262,25 @@ my $sysUrl = "https://".hostname().".deutsche-boerse.de/mqmon" ;
 my $ON  = 1 ;
 my $OFF = 0 ;
 
-my $NA    = -2;
-my $SHW   = -1;
-my $OK    =  0;
-my $IGN   =  1;
-my $TIG   =  2; # temporary ignore
-my $EARLY =  3; # early warning
-my $WAR   =  4;
-my $ERR   =  5;
+my $NA     = -2;
+my $SHW    = -1;
+my $OK     =  0;
+my $IGN    =  1;
+my $TIG    =  2; # temporary ignore
+my $EARLY  =  3; # early warning
+my $WAR    =  4;
+my $ERR    =  5;
+my $FORMAT =  6; 
 
-my %LEV = ( $NA   => 'NA', 
-            $SHW  => 'SHW',
-            $OK   => 'OK',
-            $IGN  => 'IGN',
-            $TIG  => 'TIG',
+my %LEV = ( $NA     => 'NA'   , 
+            $SHW    => 'SHW'  ,
+            $OK     => 'OK'   ,
+            $IGN    => 'IGN'  ,
+            $TIG    => 'TIG'  ,
             $EARLY  => 'EARLY',
-            $WAR  => 'WAR',
-            $ERR  => 'ERR' );
+            $WAR    => 'WAR'  ,
+            $ERR    => 'ERR'  , 
+            $FORMAT => 'ERR' );
 
 
 my $TMP = "/home/mqm/monitor/flag" ;
@@ -2561,26 +2567,28 @@ sub pingChl
     }
     elsif( $os eq 'MVS' )
     {
-      if( $line =~ /^\s*AMQ8416: MQSC timed out waiting for a response from the command server./ )
+      if( $line =~ /^\s*AMQ8416\w?:/ ) 
       {
         $pingRc = 'AMQ8416';
-        $txt = 'MQSC timed out waiting for a response from the command server' ;
+        $txt = 'MQSC timed out waiting for a response from the command server';
         last ;
       }
-      next unless $line =~ /^\s*(CSQ\w{5})\s+(\w+)\s+(\w+)\s+(\.+)$$/ ;
+      next unless $line =~ /^\s*(CSQ\w{5})\s+(\S+)\s+(\w+)\s+(.+)$/ ;
       my $mqscRc   = $1;
       my $mqscQmgr = $2;
       my $mqscCmd  = $3;
       my $mqscTxt  = $4;
-      last if $mqscCmd eq 'CSQXCRPS' ;
-      if( $mqscRc eq 'CSQXCRPS' )
+      if( $mqscCmd eq 'CSQMPCHL' )
       {
         $pingRc = $mqscRc ;
-         $txt   = $mqscTxt ; 
+        $txt   .= $mqscRc." ".$mqscTxt."<br>" ; 
       }
+      last if $mqscCmd eq 'CSQXCRPS' ;
+      last if $mqscRc  eq 'CSQ9023E' ;
     }
   }
 
+  $txt =~ s/<br>$// if defined $txt;
   return ($pingRc,$txt) ;
 
 }
@@ -2730,11 +2738,19 @@ sub evalStat
               $levRc=&evalAttr($_stAttr->{$attr}     #
                                          {value},    #
                                $_mon);               #
+              if( $levRc == $FORMAT )                #
+              {                                      #
+                print "unexpected error for:\n";     #
+                print "    app  = $app\n";           #
+                print "    qmgr = $qmgr\n";          #
+                print "    qmgr = $type\n";          #
+                print "    obj  = $obj\n";           #
+                print "    attr = $attr\n";          #
+              }                                      #
               if( scalar keys $_mon > 0 )            #
               {                                      #
                 $_stAttr->{$attr}{monitor} = $_mon ; #
                 $_stAttr->{$attr}{level} = $levRc;   #
-            #   next;                                #
               }                                      #
               if( exists $_ign->{$app}{$qmgr}{$type} #   full exists fehlt
                                 {$obj}{$attr}      ) #
@@ -2855,6 +2871,7 @@ sub evalAttr
   my $cntEarly = 0 ;
   my $cntWar = 0 ;
   my $cntErr = 0 ;
+  my $cntFormat = 0 ;
 
   my $rcCnt=0;
   foreach my $th (keys $_mon)
@@ -2870,6 +2887,12 @@ sub evalAttr
       if( $_mon->{$th} eq 'err'   ) { $cntErr++  ; next; }
       print "unknown level in \"sub evalAttr\"" ; 
     }
+    elsif( $rc == -1 )
+    {
+      warn "unexpected $_attr and _mon"; 
+      printHash $_mon ;
+      $cntFormat++;
+    }
   }
 
   if( $rcCnt == 0 &&
@@ -2884,10 +2907,11 @@ sub evalAttr
   
   
   my $rc = $OK ;
-  $rc = $WAR    if $cntWar   > 0;
-  $rc = $ERR    if $cntErr   > 0;
-  $rc = $EARLY  if $cntEarly > 0;
-  $rc = $OK     if $cntOk    > 0;
+  $rc = $WAR    if $cntWar    > 0;
+  $rc = $EARLY  if $cntEarly  > 0;
+  $rc = $ERR    if $cntErr    > 0;
+  $rc = $OK     if $cntOk     > 0;
+  $rc = $FORMAT if $cntFormat > 0;
 
   return $rc ;
 }
@@ -2915,6 +2939,7 @@ sub lev2id
 #  return 
 #    1 if true
 #    0 if false
+#   -1 if no eval possible
 ################################################################################
 sub cmpTH
 {
@@ -2927,14 +2952,18 @@ sub cmpTH
   
   if( $op eq '<' )
   {
-    return 0 unless $val =~ /^\d*$/ ;
+    return -1 unless $val =~ /^\d*$/ ;
     return 1 if $val < $th;
     return 0;
   }
   if( $op eq '>' )
   {
-    warn "$val not numeric" unless $val =~ /^\d+$/ ;
-    return 0 unless $val =~ /^\d*$/ ;
+    return -1 if $val =~ /^\s*$/ ;
+    unless( $val =~ /^\d*$/ )
+    {
+      warn "$val not numeric" ;
+      return 0 ;
+    }
     return 1 if  $val > $th;
     return 0;
   }
