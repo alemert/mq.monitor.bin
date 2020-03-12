@@ -90,6 +90,7 @@
 #    - disQmgrAlias    2.03.00
 #    - disChl          2.03.00
 #    - disChs          2.01.00 
+#    - pingChl         2.12.00
 #    - disQmStat       2.10.00
 #    - disList         2.10.00
 #    - disLisStat      2.10.00
@@ -205,6 +206,7 @@
 #                       FORMAT match to ERR level introduced
 #                       print FORMAT err to STDOUT
 #                       pingChl MVS bugs solved
+# 12.03.2019 2.12.04 am QTIME1, QTIME2 & co. monitoring introduced
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -235,7 +237,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.03" ;
+my $VERSION = "2.12.04" ;
 
 ################################################################################
 #
@@ -284,6 +286,7 @@ my %LEV = ( $NA     => 'NA'   ,
 
 
 my $TMP = "/home/mqm/monitor/flag" ;
+my $PCHTMP = $TMP.'/pingchl' ;
 my $MAIL_MAX_AGE =  2600000 ;  # app 1 Month
 
 my $DOWN    = -99 ;
@@ -1168,7 +1171,8 @@ sub setTmpIgn
     }                                    #
   }                                      #
                                          #
-  mkdir $TMP, 0775 unless -d $TMP;       # mkdir if not exists
+  mkdir $TMP   , 0775 unless -d $TMP;    # mkdir if not exists
+  mkdir $PCHTMP, 0775 unless -d $PCHTMP; #
   foreach my $attr (@attr)               #
   {                                      # setup a temporary file name
     my $file = $TMP."/$gIgnAppl-$gIgnQmgr-$gIgnType-$attr-$gIgnObj"; 
@@ -2067,6 +2071,7 @@ sub getObjState
       next unless exists $_type->{PING};
       next unless exists $_type->{PING}{send};
 
+# dis qmgr qmname
       foreach my $type ('SDR', 'SVR')
       {
         next unless $_type->{$type}{send};
@@ -2418,10 +2423,10 @@ sub parseMqsc
       {                                  # for messages  beside CSQ9022I 
         last if $line =~ /^CSQ9022I\s+/; # NORMAL COMPLETION
         if( $line =~ /CSQM297I\s+/ )     # no items found matching request
-        {
-        # warn "$line\n" ;
-          next ;
-        }
+        {                                #
+        # warn "$line\n" ;               #
+          next ;                         #
+        }                                #
         last ;                           #
       }                                  #
     }                                    #
@@ -2442,6 +2447,14 @@ sub parseMqsc
         next ;                           #
       }                                  #
       $_objRef = ${$_obj->{$obj}}[-1] if exists $_obj->{$obj} ;
+      if( defined $value    &&
+          $value=~/(\w)\s*,\s*(\w+)/)  #
+      {
+        my $val1 = $1;
+        my $val2 = $2;
+        $_objRef->{$key.'1'} = $val1;
+        $_objRef->{$key.'2'} = $val2;
+      }
       $_objRef->{$key} = $value ;        #
     }                                    #
   }                                      #
@@ -2552,8 +2565,11 @@ sub pingChl
   print $wr "ping channel($chl)\n" ;
   print $wr "ping qmgr \n" if $os eq 'UNIX' ;
 
+open CHL, ">>/home/mqm/monitor/log/chl.ping.log" ;
+
   while( my $line=<$rd> )
   {
+    print CHL "$os\t$line" ;
     chomp $line;                         #
     next if $line =~ /^\s*$/ ;           #
     if( $os eq 'UNIX' )
@@ -2578,15 +2594,16 @@ sub pingChl
       my $mqscQmgr = $2;
       my $mqscCmd  = $3;
       my $mqscTxt  = $4;
-      if( $mqscCmd eq 'CSQMPCHL' )
-      {
+ #    if( $mqscCmd eq 'CSQMPCHL' )
+ #    {
         $pingRc = $mqscRc ;
         $txt   .= $mqscRc." ".$mqscTxt."<br>" ; 
-      }
+ #    }
       last if $mqscCmd eq 'CSQXCRPS' ;
       last if $mqscRc  eq 'CSQ9023E' ;
     }
   }
+  close CHL;
 
   $txt =~ s/<br>$// if defined $txt;
   return ($pingRc,$txt) ;
