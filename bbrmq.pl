@@ -96,6 +96,8 @@
 #    - disLisStat      2.10.00
 #    - disServ         2.10.00
 #    - disServStat     2.10.00
+#    - stateFromFile   2.12.04 
+#    - stateToFile     2.12.04
 #    - evalStat        2.00.03 
 #    - evalAttr        2.00.00
 #    - lev2id          2.03.00
@@ -207,6 +209,7 @@
 #                       print FORMAT err to STDOUT
 #                       pingChl MVS bugs solved
 # 12.03.2019 2.12.04 am QTIME1, QTIME2 & co. monitoring introduced
+#            2.12.05 am appl name added to the e-mail subject 
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -229,7 +232,7 @@ use POSIX ":sys_wait_h" ;  # for no hang on runmqsc in the background
 use Sys::Hostname;
 
 use Time::Local ;
-use Time::HiRes qw(usleep nanosleep);
+use Time::HiRes qw(usleep nanosleep gettimeofday);
 
 use Data::Dumper ;
 
@@ -237,7 +240,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.04" ;
+my $VERSION = "2.12.05" ;
 
 ################################################################################
 #
@@ -1171,8 +1174,6 @@ sub setTmpIgn
     }                                    #
   }                                      #
                                          #
-  mkdir $TMP   , 0775 unless -d $TMP;    # mkdir if not exists
-  mkdir $PCHTMP, 0775 unless -d $PCHTMP; #
   foreach my $attr (@attr)               #
   {                                      # setup a temporary file name
     my $file = $TMP."/$gIgnAppl-$gIgnQmgr-$gIgnType-$attr-$gIgnObj"; 
@@ -2095,6 +2096,16 @@ sub getObjState
               $goalInst->{PING} = 'OK' ;
               $goalInst->{TEXT} = 'OK, channel running';
             }
+            elsif( -f $PCHTMP."/$qmgr-$type-$obj" )
+            {
+       #    # muss getestet werden
+       #    # kann aber nicht laufen da diese dateien nich existieren
+       #    # da stateToFile nicht existiert
+
+       #    # ( $goalInst->{PING},
+       #    #   $goalInst->{TEXT} ) = &stateFromFile( $qmgr, $type, $obj );
+                $goalInst = &stateFromFile( $qmgr, $type, $obj );
+            }
             else
             {
               ( $goalInst->{PING},
@@ -2102,6 +2113,7 @@ sub getObjState
                                                $_conn->{$qmgr}{WR},
                                                $_conn->{$qmgr}{OS}, 
                                                $obj );
+              &stateToFile( $qmgr, $type, $obj, $goalInst ); 
             }
             push @{$_state->{$app}{$qmgr}{PING}{$obj}},$goalInst; ;
           }
@@ -2688,6 +2700,67 @@ sub disServStat
 
   return parseMqsc $rd, $os ;
 } 
+
+################################################################################
+# get status from file
+################################################################################
+sub stateFromFile
+{
+  my $qmgr = $_[0] ;
+  my $type = $_[1] ;
+  my $obj  = $_[2] ;
+
+  my %rc ;
+
+  my $file = $PCHTMP."/$qmgr-$type-$obj";
+ 
+
+  open STAT, $file;
+
+  foreach my $line (<STAT>)
+  {
+    $line =~ /^(\w+)=(.+)$/ ;
+    my $key = $1;
+    my $val = $2;
+    $rc{$key} = $val ; 
+  }
+  close STAT;
+
+  my $fileAge = (stat $file)[9] ;
+  my $sysTime = time();
+  if( ( $sysTime - $fileAge ) > 3600 )
+  {
+    unlink $file ;
+  }
+
+  return \%rc ;
+}
+
+################################################################################
+# state to file
+################################################################################
+sub stateToFile
+{ 
+  my $qmgr  = $_[0] ;
+  my $type  = $_[1] ;
+  my $obj   = $_[2] ;
+  my $_hash = $_[3] ;
+
+  my $file = "$PCHTMP/$qmgr-$type-$obj";
+
+  open STAT, ">$file" ;
+  foreach my $key (keys %$_hash)
+  {
+    print STAT "$key=$_hash->{$key}\n";
+  }
+  close STAT;
+  my $sysTime = gettimeofday   ; 
+     $sysTime =~ /(\d+)\.(\d+)/ ;
+  my $fileTime = $1 + ($2%3600) + 1800 ;
+
+  utime time(), $fileTime, $file;  # set the time stamp in the future
+
+}
 
 ################################################################################
 # evaluate state
@@ -3821,7 +3894,8 @@ sub printMsg
         if( exists $_app->{$app}{qmgr}{$qmgr}             #
                           {type}{$type}{send}{mail} )     #
         {                                                 #
-          my ($mailErr,$mailBody,$mailSub)=&mailMsg($qmgr ,
+          my ($mailErr,$mailBody,$mailSub)=&mailMsg($app,
+                                                    $qmgr ,
                                                     $type ,        
                                                     $_glb ,       
                                                     $_stat->{$app}); 
@@ -4129,10 +4203,11 @@ sub xymonMsg
 ################################################################################
 sub mailMsg
 {
-  my $qmgr    = $_[0] ;
-  my $type    = $_[1] ;
-  my $_glb    = $_[2] ;
-  my $_stat   = $_[3] ;
+  my $appl    = $_[0] ;
+  my $qmgr    = $_[1] ;
+  my $type    = $_[2] ;
+  my $_glb    = $_[3] ;
+  my $_stat   = $_[4] ;
 
   logger();
   my $report ;
@@ -4161,6 +4236,7 @@ sub mailMsg
               last;
             }
           }
+          warn "$appl / $qmgr / $type /$obj / $attr" unless defined $th ;
           $report .= "$obj $attr $_objInst->{attr}{$attr}{value} $th -> err\n" ;
         }
       }
@@ -4174,7 +4250,7 @@ sub mailMsg
   my $subject ;
   if( $globErr > 0 )
   {
-    $subject = "Error on $qmgr for $type"; 
+    $subject = "Error $appl on $qmgr for $type"; 
   }
   return ($globErr,$report,$subject);
 }
@@ -4378,10 +4454,11 @@ if( $gRun == $START || $gRun == $RESTART )
   }
 }
 
-
 # ----------------------------------------------------------
 # clean flag directory
 # ----------------------------------------------------------
+mkdir $TMP   , 0775 unless -d $TMP;    # mkdir if not exists
+mkdir $PCHTMP, 0775 unless -d $PCHTMP; #
 cleanUp();
 
 # ----------------------------------------------------------
@@ -4441,6 +4518,11 @@ if( $gList == 1 )
 
 while( 1 )
 {
+open CHL, ">>/home/mqm/monitor/log/chl.ping.log" ;
+print CHL scalar time() ;
+print CHL "\n"; 
+close CHL;
+
   connQmgr $_cfg, $_conn, \@qmgrAlias ;
   $_stat = getObjState $_cfg, $_conn ;
   shrinkAttr $_cfg, $_stat ;
