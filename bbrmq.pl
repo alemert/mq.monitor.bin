@@ -210,6 +210,7 @@
 #                       pingChl MVS bugs solved
 # 12.03.2019 2.12.04 am QTIME1, QTIME2 & co. monitoring introduced
 #            2.12.05 am appl name added to the e-mail subject 
+# 02.04.2019 2.13.06 am PING channel only during office times
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -240,7 +241,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.05" ;
+my $VERSION = "2.12.06" ;
 
 ################################################################################
 #
@@ -2072,53 +2073,78 @@ sub getObjState
       next unless exists $_type->{PING};
       next unless exists $_type->{PING}{send};
 
-# dis qmgr qmname
-      foreach my $type ('SDR', 'SVR')
+# dis qmgr qmname missing
+      my $SYSdate =  time()            ;
+      my @SYSdate =  localtime $SYSdate;
+
+      my $ss   =  $SYSdate[0] ;
+      my $mm   =  $SYSdate[1] ;
+      my $hh   =  $SYSdate[2] ;
+      my $dd   =  $SYSdate[3] ;
+      my $MM   =  $SYSdate[4] + 1 ;
+      my $YYYY =  $SYSdate[5] + 1900 ;
+      my $wd   =  $SYSdate[6] ;
+
+      my $day = sprintf("%4d-%2d-%2d", $YYYY, $MM, $dd );
+      my $time = sprintf("%2d%2d", $hh, $mm)  ;
+      $day =~ s/ /0/g;
+      $time =~ s/ /0/g;
+
+      if( $time > 1730 ||
+          $time < 730  ||
+          $wd == 6     ||
+          $wd == 0      )
       {
-        next unless $_type->{$type}{send};
-        foreach my $obj ( keys %{$_state->{$app}{$qmgr}{$type}} )
+        my $goalInst;
+        $goalInst->{CHLTYPE} ='ANY' ;
+        $goalInst->{PING}    = 'OK' ;
+        $goalInst->{STATUS}  = 'INACTIVE' ;
+        $goalInst->{STATUS}  = 'No health check during night / weekend' ;
+        push @{$_state->{$app}{$qmgr}{PING}{'ALL'}},$goalInst; ;
+      }
+      else
+      {
+        foreach my $type ('SDR', 'SVR')
         {
-          foreach my $srcInst ( @{$_state->{$app}{$qmgr}{$type}{$obj}} )
+          next unless $_type->{$type}{send};
+          foreach my $obj ( keys %{$_state->{$app}{$qmgr}{$type}} )
           {
-            my $goalInst ;
-            $goalInst->{CHLTYPE} = $type ;
-            unless( exists $srcInst->{STATUS} )
+            foreach my $srcInst ( @{$_state->{$app}{$qmgr}{$type}{$obj}} )
             {
-              $goalInst->{STATUS} = 'INACTIVE' ;
-            }
-            else
-            {
-              $goalInst->{STATUS} = $srcInst->{STATUS} ;
-            }
-
-            if( $goalInst->{STATUS} eq 'RUNNING' )
-            {
-              $goalInst->{PING} = 'OK' ;
-              $goalInst->{TEXT} = 'OK, channel running';
-            }
-            elsif( -f $PCHTMP."/$qmgr-$type-$obj" )
-            {
-       #    # muss getestet werden
-       #    # kann aber nicht laufen da diese dateien nich existieren
-       #    # da stateToFile nicht existiert
-
-       #    # ( $goalInst->{PING},
-       #    #   $goalInst->{TEXT} ) = &stateFromFile( $qmgr, $type, $obj );
+              my $goalInst ;
+              $goalInst->{CHLTYPE} = $type ;
+              unless( exists $srcInst->{STATUS} )
+              {
+                $goalInst->{STATUS} = 'INACTIVE' ;
+              }
+              else
+              {
+                $goalInst->{STATUS} = $srcInst->{STATUS} ;
+              }
+  
+              if( $goalInst->{STATUS} eq 'RUNNING' )
+              {
+                $goalInst->{PING} = 'OK' ;
+                $goalInst->{TEXT} = 'OK, channel running';
+              }
+              elsif( -f $PCHTMP."/$qmgr-$type-$obj" )
+              {
                 $goalInst = &stateFromFile( $qmgr, $type, $obj );
+              }
+              else
+              {
+                ( $goalInst->{PING},
+                  $goalInst->{TEXT} ) = pingChl( $_conn->{$qmgr}{RD},
+                                                 $_conn->{$qmgr}{WR},
+                                                 $_conn->{$qmgr}{OS}, 
+                                                 $obj );
+                &stateToFile( $qmgr, $type, $obj, $goalInst ); 
+              }
+              push @{$_state->{$app}{$qmgr}{PING}{$obj}},$goalInst; ;
             }
-            else
-            {
-              ( $goalInst->{PING},
-                $goalInst->{TEXT} ) = pingChl( $_conn->{$qmgr}{RD},
-                                               $_conn->{$qmgr}{WR},
-                                               $_conn->{$qmgr}{OS}, 
-                                               $obj );
-              &stateToFile( $qmgr, $type, $obj, $goalInst ); 
-            }
-            push @{$_state->{$app}{$qmgr}{PING}{$obj}},$goalInst; ;
           }
         }
-      }
+      }   
     }
   }
   return $_state ;
