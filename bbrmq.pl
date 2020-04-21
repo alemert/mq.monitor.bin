@@ -211,6 +211,8 @@
 # 12.03.2019 2.12.04 am QTIME1, QTIME2 & co. monitoring introduced
 #            2.12.05 am appl name added to the e-mail subject 
 # 02.04.2019 2.13.06 am PING channel only during office times
+# 02.04.2019 2.13.07 am dis qmgr if PING CHL on time out
+#                       TIMEOUT variable introduced
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -241,7 +243,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.06" ;
+my $VERSION = "2.12.07" ;
 
 ################################################################################
 #
@@ -313,6 +315,8 @@ my $runmqsc = "/opt/mqm/90a/bin/runmqsc -e " ;
 my $patrol  = "/opt/Patrol/MSEND/PatrolEvent" ;
 
 my $_conn ;  # $_conn has to be global so it can be used in the signal handler
+
+my $TIMEOUT = 0;
 
 # ----------------------------------------------------------
 # logger
@@ -1850,6 +1854,7 @@ sub connQmgr
         $_conn->{$qmgr}{PID} = 0;                   #
         $_conn->{$qmgr}{RETRY}++ ;                  #
         usleep 100000 ;                             #
+        $TIMEOUT+=5;
       }                                             #
       $_conn->{$qmgr}{OS} = $platform;              #
     }
@@ -2073,7 +2078,7 @@ sub getObjState
       next unless exists $_type->{PING};
       next unless exists $_type->{PING}{send};
 
-# dis qmgr qmname missing
+
       my $SYSdate =  time()            ;
       my @SYSdate =  localtime $SYSdate;
 
@@ -2090,8 +2095,8 @@ sub getObjState
       $day =~ s/ /0/g;
       $time =~ s/ /0/g;
 
-      if( $time > 1730 ||
-          $time < 730  ||
+      if( $time > 2000 ||
+          $time < 630  ||
           $wd == 6     ||
           $wd == 0      )
       {
@@ -2104,6 +2109,8 @@ sub getObjState
       }
       else
       {
+        my $pingChlTimeOut = 0;
+
         foreach my $type ('SDR', 'SVR')
         {
           next unless $_type->{$type}{send};
@@ -2116,31 +2123,58 @@ sub getObjState
               unless( exists $srcInst->{STATUS} )
               {
                 $goalInst->{STATUS} = 'INACTIVE' ;
+
+                if( -f $PCHTMP."/$qmgr-$type-$obj" )
+                {
+                  $goalInst = &stateFromFile( $qmgr, $type, $obj );
+                }
+                else
+                {
+                  ( $goalInst->{PING},
+                    $goalInst->{TEXT} ) = pingChl( $_conn->{$qmgr}{RD},
+                                                   $_conn->{$qmgr}{WR},
+                                                   $_conn->{$qmgr}{OS}, 
+                                                   $obj );
+                  $pingChlTimeOut++ if $goalInst->{PING} eq 'AMQ8416' ;
+                  &stateToFile( $qmgr, $type, $obj, $goalInst ); 
+                }
               }
               else
               {
                 $goalInst->{STATUS} = $srcInst->{STATUS} ;
-              }
-  
-              if( $goalInst->{STATUS} eq 'RUNNING' )
-              {
                 $goalInst->{PING} = 'OK' ;
-                $goalInst->{TEXT} = 'OK, channel running';
-              }
-              elsif( -f $PCHTMP."/$qmgr-$type-$obj" )
-              {
-                $goalInst = &stateFromFile( $qmgr, $type, $obj );
-              }
-              else
-              {
-                ( $goalInst->{PING},
-                  $goalInst->{TEXT} ) = pingChl( $_conn->{$qmgr}{RD},
-                                                 $_conn->{$qmgr}{WR},
-                                                 $_conn->{$qmgr}{OS}, 
-                                                 $obj );
+                $goalInst->{TEXT} = 'channel healt check done by status';
                 &stateToFile( $qmgr, $type, $obj, $goalInst ); 
               }
+  
               push @{$_state->{$app}{$qmgr}{PING}{$obj}},$goalInst; ;
+            }
+          }
+        }
+        if( $pingChlTimeOut > 0 )
+        {
+          if( $_conn->{$qmgr}{OS} eq 'UNIX' )
+          {
+            sleep 60;
+            $TIMEOUT+=60;
+
+            my $wr = $_conn->{$qmgr}{WR} ;
+            my $rd = $_conn->{$qmgr}{RD} ;
+            print $wr "dis qmgr qmname\n" ;
+            while( my $line=<$rd> )
+            {
+              chomp $line;                         #
+              next if $line =~ /^\s*$/ ;           #
+                                                   #
+              if( $line =~ /(AMQ\d{4})\w?:/ )      #
+              {                                    #
+                my $amq = $1;                      #
+                last if $amq eq 'AMQ8145' ;        # Connection broken.
+                last if $amq eq 'AMQ8156' ;        # queue manager quiescing
+                last if $amq eq 'AMQ8416' ;        # Time Out
+                next if $amq eq 'AMQ8408' ;        # Dis qmgr
+              }  
+              last if $line =~ /^\s*QMNAME\(/ ;
             }
           }
         }
@@ -4541,14 +4575,13 @@ if( $gList == 1 )
   exit ;
 }
 
-
 while( 1 )
 {
 open CHL, ">>/home/mqm/monitor/log/chl.ping.log" ;
 print CHL scalar time() ;
 print CHL "\n"; 
 close CHL;
-
+  $TIMEOUT = 0 ;
   connQmgr $_cfg, $_conn, \@qmgrAlias ;
   $_stat = getObjState $_cfg, $_conn ;
   shrinkAttr $_cfg, $_stat ;
@@ -4584,6 +4617,7 @@ close CHL;
     sleep 5;
     next ;
   }
-  sleep 300 ;
+  $TIMEOUT = 299 if $TIMEOUT > 280 ;  #  sleep time - timeout > 0
+  sleep (300-$TIMEOUT) ;
 }
 
