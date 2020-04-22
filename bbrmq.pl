@@ -211,8 +211,11 @@
 # 12.03.2019 2.12.04 am QTIME1, QTIME2 & co. monitoring introduced
 #            2.12.05 am appl name added to the e-mail subject 
 # 02.04.2019 2.13.06 am PING channel only during office times
-# 02.04.2019 2.13.07 am dis qmgr if PING CHL on time out
+# 20.04.2019 2.13.07 am dis qmgr if PING CHL on time out
 #                       TIMEOUT variable introduced
+# 21.04.2019 2.13.08 am 2.13.06 functionality removed
+#                       mailMsg bug with undefined $th in report variable 
+#                         solved for combined status
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -243,7 +246,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.07" ;
+my $VERSION = "2.12.08" ;
 
 ################################################################################
 #
@@ -2095,20 +2098,20 @@ sub getObjState
       $day =~ s/ /0/g;
       $time =~ s/ /0/g;
 
-      if( $time > 2000 ||
-          $time < 630  ||
-          $wd == 6     ||
-          $wd == 0      )
-      {
-        my $goalInst;
-        $goalInst->{CHLTYPE} ='ANY' ;
-        $goalInst->{PING}    = 'OK' ;
-        $goalInst->{STATUS}  = 'INACTIVE' ;
-        $goalInst->{STATUS}  = 'No health check during night / weekend' ;
-        push @{$_state->{$app}{$qmgr}{PING}{'ALL'}},$goalInst; ;
-      }
-      else
-      {
+   #  if( $time > 2000 ||
+   #      $time < 630  ||
+   #      $wd == 6     ||
+   #      $wd == 0      )
+   #  {
+   #    my $goalInst;
+   #    $goalInst->{CHLTYPE} ='ANY' ;
+   #    $goalInst->{PING}    = 'OK' ;
+   #    $goalInst->{STATUS}  = 'INACTIVE' ;
+   #    $goalInst->{STATUS}  = 'No health check during night / weekend' ;
+   #    push @{$_state->{$app}{$qmgr}{PING}{'ALL'}},$goalInst; ;
+   #  }
+   #  else
+   #  {
         my $pingChlTimeOut = 0;
 
         foreach my $type ('SDR', 'SVR')
@@ -2178,7 +2181,7 @@ sub getObjState
             }
           }
         }
-      }   
+ #    }   
     }
   }
   return $_state ;
@@ -2814,9 +2817,9 @@ sub stateToFile
     print STAT "$key=$_hash->{$key}\n";
   }
   close STAT;
-  my $sysTime = gettimeofday   ; 
+  my $sysTime = gettimeofday   ;   # time.\d{5}
      $sysTime =~ /(\d+)\.(\d+)/ ;
-  my $fileTime = $1 + ($2%3600) + 1800 ;
+  my $fileTime = $1 + ($2%3600) + 3600 ;
 
   utime time(), $fileTime, $file;  # set the time stamp in the future
 
@@ -4288,12 +4291,15 @@ sub mailMsg
           $globErr++;
           $objErr++;
           my $th;
-          foreach my $key ( keys %{$_objInst->{attr}{$attr}{monitor}} )
+          if( exists $_objInst->{attr}{$attr}{monitor} )
           {
-            if( $_objInst->{attr}{$attr}{monitor}{$key} eq 'err' )
+            foreach my $key ( keys %{$_objInst->{attr}{$attr}{monitor}} )
             {
-              $th = $key ;
-              last;
+              if( $_objInst->{attr}{$attr}{monitor}{$key} eq 'err' )
+              {
+                $th = $key ;
+                last;
+              }
             }
           }
           warn "$appl / $qmgr / $type /$obj / $attr" unless defined $th ;
