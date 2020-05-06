@@ -216,6 +216,8 @@
 # 21.04.2019 2.13.08 am 2.13.06 functionality removed
 #                       mailMsg bug with undefined $th in report variable 
 #                         solved for combined status
+# 06.05.2019 2.13.09 am removing debug pinc chl information
+#                       CSQ9006E message handling on ZoS MQSC output
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -246,7 +248,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.08" ;
+my $VERSION = "2.12.09" ;
 
 ################################################################################
 #
@@ -1970,7 +1972,10 @@ sub cfg2conn
     }
     elsif( $_cfg->{$qmgr}{type} eq 'zos' ) 
     {
-      $_conn->{$qmgr}{RUN} = $runmqsc.' -w 10 -x '.$qmgr ;
+#     $_conn->{$qmgr}{RUN} = $runmqsc.' -w 10 -x '.$qmgr ;
+      $_conn->{$qmgr}{RUN} = $runmqsc.' -w 10 -x -m '.
+                                      $_cfg->{$qmgr}{proxy}.
+                                      ' '.$qmgr ;
     }
     elsif( $_cfg->{$qmgr}{type} eq 'direct' ) 
     {
@@ -2502,6 +2507,12 @@ sub parseMqsc
         # warn "$line\n" ;               #
           next ;                         #
         }                                #
+        if( $line =~ /CSQ9006E\s+/ )     # 'QLOCAL' parameter uses asterisk (*)
+        {                                #
+          warn "unexpected MQSC output\n";
+          die "$line\n" ;                #
+          next ;                         #
+        }                                #
         last ;                           #
       }                                  #
     }                                    #
@@ -2640,11 +2651,8 @@ sub pingChl
   print $wr "ping channel($chl)\n" ;
   print $wr "ping qmgr \n" if $os eq 'UNIX' ;
 
-open CHL, ">>/home/mqm/monitor/log/chl.ping.log" ;
-
   while( my $line=<$rd> )
   {
-    print CHL "$os\t$line" ;
     chomp $line;                         #
     next if $line =~ /^\s*$/ ;           #
     if( $os eq 'UNIX' )
@@ -2678,11 +2686,9 @@ open CHL, ">>/home/mqm/monitor/log/chl.ping.log" ;
       last if $mqscRc  eq 'CSQ9023E' ;
     }
   }
-  close CHL;
 
   $txt =~ s/<br>$// if defined $txt;
   return ($pingRc,$txt) ;
-
 }
 
 ################################################################################
@@ -4583,10 +4589,6 @@ if( $gList == 1 )
 
 while( 1 )
 {
-open CHL, ">>/home/mqm/monitor/log/chl.ping.log" ;
-print CHL scalar time() ;
-print CHL "\n"; 
-close CHL;
   $TIMEOUT = 0 ;
   connQmgr $_cfg, $_conn, \@qmgrAlias ;
   $_stat = getObjState $_cfg, $_conn ;
