@@ -210,14 +210,16 @@
 #                       pingChl MVS bugs solved
 # 12.03.2019 2.12.04 am QTIME1, QTIME2 & co. monitoring introduced
 #            2.12.05 am appl name added to the e-mail subject 
-# 02.04.2019 2.13.06 am PING channel only during office times
-# 20.04.2019 2.13.07 am dis qmgr if PING CHL on time out
+# 02.04.2019 2.12.06 am PING channel only during office times
+# 20.04.2019 2.12.07 am dis qmgr if PING CHL on time out
 #                       TIMEOUT variable introduced
-# 21.04.2019 2.13.08 am 2.13.06 functionality removed
+# 21.04.2019 2.12.08 am 2.13.06 functionality removed
 #                       mailMsg bug with undefined $th in report variable 
 #                         solved for combined status
-# 06.05.2019 2.13.09 am removing debug pinc chl information
+# 06.05.2019 2.12.09 am removing debug pinc chl information
 #                       CSQ9006E message handling on ZoS MQSC output
+# 06.05.2019 2.12.10 am mailMsg th not defined for combined attribute (SDR/SVR) 
+#                         solved
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -248,7 +250,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.09" ;
+my $VERSION = "2.12.10" ;
 
 ################################################################################
 #
@@ -4308,8 +4310,20 @@ sub mailMsg
               }
             }
           }
+
+          if( exists $_glb->{type}{$type}{combine}               &&
+              exists $_glb->{type}{$type}{combine}{$attr}        &&
+              exists $_glb->{type}{$type}{combine}{$attr}{match} &&
+              ref    $_glb->{type}{$type}{combine}{$attr}{match} eq 'HASH' )
+          {
+            foreach my $key (keys %{$_glb->{type}{$type}{combine}{$attr}{match}})
+            {
+                    my $val = $_glb->{type}{$type}{combine}{$attr}{match}{$key} ;
+                    $th .= '$key=$val;'
+            }
+          }
           warn "$appl / $qmgr / $type /$obj / $attr" unless defined $th ;
-          $report .= "$obj $attr $_objInst->{attr}{$attr}{value} $th -> err\n" ;
+          $report .= "$obj $attr $_objInst->{attr}{$attr}{value} $th -> err\n";
         }
       }
   # future feature : formline
