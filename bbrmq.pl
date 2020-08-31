@@ -218,8 +218,13 @@
 #                         solved for combined status
 # 06.05.2019 2.12.09 am removing debug pinc chl information
 #                       CSQ9006E message handling on ZoS MQSC output
-# 06.05.2019 2.12.10 am mailMsg th not defined for combined attribute (SDR/SVR) 
+# 06.05.2019 2.12.10 am mailMsg th not defined for combined attribute (SDR/SVR)
 #                         solved
+# 27.08.2020 2.13.00 am $key=$val in mailMsg bug solved
+#                       set ignore until green 
+#                       don't delete ignore file for files created 
+#                       on 1st Jan 197 + max 10 sec
+#                       delete ignore until green file if green.
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -250,7 +255,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.12.10" ;
+my $VERSION = "2.13.00" ;
 
 ################################################################################
 #
@@ -1125,19 +1130,26 @@ sub setTmpIgn
   {                                      #   command line
     print "time to disable:\n> ";        # read it from stdin
     $gIgnTime = <STDIN>;                 #
+    chomp $gIgnTime ;                    #
   }                                      #
                                          #
   my $epochIgnTime;                      #
-  if($gIgnTime=~/^\s*(\d+)([m|h|d])\s*$/)# time in form min / hour / day offset
+  # -------------------------------------- 
+  # time in form min / hour / day offset
+  # -------------------------------------- 
+  if($gIgnTime=~/^\s*(\d+)([m|h|d])\s*$/)#
   {                                      #
     my $offset = $1;                     #
     my $unit   = $2;                     #
     $offset *= 60    if $unit eq 'm';    #
     $offset *= 3600  if $unit eq 'h';    #
     $offset *= 86400 if $unit eq 'd';    #
-                                         # time in form until yyyy-mm-dd hh:mm
-    $epochIgnTime = time() + $offset;    # oder in form mm-dd hh:mm
-  }                                      # oder in form hh:mm
+                                         # 
+    $epochIgnTime = time() + $offset;    #
+  }                                      #
+  # -------------------------------------- 
+  # time in form until yyyy-mm-dd hh:mm or in form mm-dd hh:mm or in form hh:mm
+  # -------------------------------------- 
   elsif($gIgnTime=~/^\s*(                # open date 
                          ((20\d{2})-)?   # year 20?? -> can occure 
                          (\d{2})-        # month
@@ -1184,6 +1196,10 @@ sub setTmpIgn
     {                                    #
       die "time in the past\n"           #
     }                                    #
+  }                                      #
+  elsif( lc( $gIgnTime ) eq 'ug' )       #
+  {                                      #
+    $epochIgnTime =0 ;                   #
   }                                      #
                                          #
   foreach my $attr (@attr)               #
@@ -1306,7 +1322,7 @@ sub getTmpIgn
     my $obj  = $5 ;
     my $time = (stat $TMP.'/'.$file)[9] ;
 
-    if( time() > $time ) 
+    if( time() > $time && $time > 10 ) 
     {
       unlink $TMP.'/'.$file ;
       next ;
@@ -2916,8 +2932,18 @@ sub evalStat
               if( exists $_ign->{$app}{$qmgr}{$type} #   full exists fehlt
                                 {$obj}{$attr}      ) #
               {                                      #
-                $_stAttr->{$attr}{ignore} = $TIG ;   #
-                $ignRc = $TIG;                       #
+                if( $_ign->{$app}{$qmgr}{$type}      #
+                           {$obj}{$attr}  == 0   &&  #
+                    $levRc                == $OK   ) #
+                {                                    #
+                  my $file = "$TMP/$app-$qmgr-$type-$attr-$obj" ;
+                  unlink $file ;                     #
+                }                                    #
+                else                                 #
+                {                                    #
+                  $_stAttr->{$attr}{ignore} = $TIG ; #
+                  $ignRc = $TIG;                     #
+                }                                    #
               }                                      #
                                                      #
               $cnt++;                                #
@@ -4318,8 +4344,8 @@ sub mailMsg
           {
             foreach my $key (keys %{$_glb->{type}{$type}{combine}{$attr}{match}})
             {
-                    my $val = $_glb->{type}{$type}{combine}{$attr}{match}{$key} ;
-                    $th .= '$key=$val;'
+              my $val=$_glb->{type}{$type}{combine}{$attr}{match}{$key};
+              $th .= "$key=$val;" ;
             }
           }
           warn "$appl / $qmgr / $type /$obj / $attr" unless defined $th ;

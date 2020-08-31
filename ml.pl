@@ -52,7 +52,7 @@ while( defined $ARGV[0] )
 ################################################################################
 my $TIME_MIN = 0 ;
 my $TIME_MAX = 99999999999999 ;
-my $MAX_LINE = 300 ;
+my $MAX_LINE = 400 ;
 
 my %LEV = ( 'NA' => '&clear'  , 
             'MSG' => '&green' ,
