@@ -225,6 +225,7 @@
 #                       don't delete ignore file for files created 
 #                       on 1st Jan 197 + max 10 sec
 #                       delete ignore until green file if green.
+# 24.09.2020 2.13.01 am set combined attribute on ignore
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -255,7 +256,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.13.00" ;
+my $VERSION = "2.13.01" ;
 
 ################################################################################
 #
@@ -1116,7 +1117,12 @@ sub setTmpIgn
   }                                      #
   else                                   # one mq object attribute 
   {                                      #  passed on command line
-    unless( exists $_attr->{$gIgnAttr} ) #
+    unless( exists $_attr->{$gIgnAttr}   || 
+            ( exists $_type->{$gIgnType} &&
+              exists $_type->{$gIgnType}{combine} &&
+              exists $_type->{$gIgnType}{combine}{$gIgnAttr} 
+            )
+          )
     {                                    # mq object attribute invalid -> break
       die "$gIgnAttr does not exists\n"; #
     }                                    #
@@ -2936,6 +2942,7 @@ sub evalStat
                            {$obj}{$attr}  == 0   &&  #
                     $levRc                == $OK   ) #
                 {                                    #
+# achtung experiment
                   my $file = "$TMP/$app-$qmgr-$type-$attr-$obj" ;
                   unlink $file ;                     #
                 }                                    #
@@ -4345,7 +4352,7 @@ sub mailMsg
             foreach my $key (keys %{$_glb->{type}{$type}{combine}{$attr}{match}})
             {
               my $val=$_glb->{type}{$type}{combine}{$attr}{match}{$key};
-              $th .= "$key=$val;" ;
+              $th .= "$key"."="."$val;" ;
             }
           }
           warn "$appl / $qmgr / $type /$obj / $attr" unless defined $th ;
