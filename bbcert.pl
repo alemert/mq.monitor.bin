@@ -46,7 +46,7 @@ foreach my $dir ( glob "$ssldir/*/" )
     if( $line =~ /^\s*ERR\s*$/ )
     {
       $err++;
-      $lev = '&err' ;
+      $lev = '&red' ;
       $msg .= "\n$lev " ;
       next ;
     }
