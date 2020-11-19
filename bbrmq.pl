@@ -226,6 +226,7 @@
 #                       on 1st Jan 197 + max 10 sec
 #                       delete ignore until green file if green.
 # 24.09.2020 2.13.01 am set combined attribute on ignore
+# 19.11.2020 2.13.02 am mqSDR type added
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -256,7 +257,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.13.01" ;
+my $VERSION = "2.13.02" ;
 
 ################################################################################
 #
@@ -2316,14 +2317,17 @@ sub execMqsc
   # SDR
   # --------------------------------------------------------
   elsif( $type eq 'SDR'   ||
+         $type eq 'mqSDR' ||
          $type eq 'SVR'   ||
          $type eq 'RCVR'  ||
          $type eq 'RQSTR' )
   {
-    my $_chl = disChl( $rd, $wr, $type, $obj, $os );
+    my $myType = $type ;
+       $myType =~ s/^mq//g;
+    my $_chl = disChl( $rd, $wr, $myType, $obj, $os );
     return $_chl unless defined $_chl ;
 
-    my $_chs = disChs(  $rd, $wr, $type, $obj, $os );
+    my $_chs = disChs(  $rd, $wr, $myType, $obj, $os );
 
      $_obj = &joinChStat($_chl, $_chs );
   }
