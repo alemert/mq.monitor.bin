@@ -16,6 +16,7 @@ my %MONTH;
    $MONTH{May} = 4 ;
    $MONTH{Jun} = 5 ;
    $MONTH{Aug} = 7 ;
+   $MONTH{Oct} = 9 ;
    $MONTH{Nov} = 10 ;
    $MONTH{Dec} = 11 ;
 
