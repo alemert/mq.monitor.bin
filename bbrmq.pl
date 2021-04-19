@@ -2096,13 +2096,27 @@ sub getObjState
         }
         if( exists $_type->{$type}{keep} )
         {
-          foreach my $keep (@{$_type->{$type}{keep}} )
+          foreach my $obj (keys $_state->{$app}{$qmgr}{$type})
           {
-            foreach my $obj (keys $_state->{$app}{$qmgr}{$type})
+            my $found = 0 ;
+            foreach my $keep (@{$_type->{$type}{keep}} )
             {
-              delete $_state->{$app}{$qmgr}{$type}{$obj} unless $obj=~/$keep/;
-            }
-          }
+              if( $obj =~ /$keep/ )
+              {
+                $found = 1;
+                last ;
+              }
+            } 
+            next if $found == 1 ; 
+            delete $_state->{$app}{$qmgr}{$type}{$obj} ;
+          } 
+        # foreach my $keep (@{$_type->{$type}{keep}} )
+        # {
+        #   foreach my $obj (keys $_state->{$app}{$qmgr}{$type})
+        #   {
+        #     delete $_state->{$app}{$qmgr}{$type}{$obj} unless $obj=~/$keep/;
+        #   }
+        # }
         }
       }
       # ----------------------------------------------------
