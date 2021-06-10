@@ -227,7 +227,8 @@
 #                       delete ignore until green file if green.
 # 24.09.2020 2.13.01 am set combined attribute on ignore
 # 19.11.2020 2.13.02 am mqSDR type added
-# 19.11.2020 2.13.03 am keep only first element working solved
+# 05.05.2021 2.13.03 am keep only first element working solved
+# 10.06.2021 2.13.01 am BOQ for Back Out Queues introduced
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -2301,6 +2302,7 @@ sub execMqsc
   if( $type eq 'QLOCAL'   ||
       $type eq 'mqQLOCAL' ||
       $type eq 'INITQ'    ||
+      $type eq 'BOQ'      ||
       $type eq 'DLQ'       )
   {
     my $_ql = disQl( $rd, $wr, $obj, $os );
