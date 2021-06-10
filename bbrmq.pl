@@ -227,6 +227,7 @@
 #                       delete ignore until green file if green.
 # 24.09.2020 2.13.01 am set combined attribute on ignore
 # 19.11.2020 2.13.02 am mqSDR type added
+# 19.11.2020 2.13.03 am keep only first element working solved
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -257,7 +258,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.13.02" ;
+my $VERSION = "2.13.03" ;
 
 ################################################################################
 #
@@ -2867,7 +2868,10 @@ sub stateToFile
   close STAT;
   my $sysTime = gettimeofday   ;   # time.\d{5}
      $sysTime =~ /(\d+)\.(\d+)/ ;
-  my $fileTime = $1 + ($2%3600) + 3600 ;
+  my $a = $1 ;
+  my $b = $2 ; 
+  $b = 0 unless defined $b ;
+  my $fileTime = $a + ($b%3600) + 3600 ;
 
   utime time(), $fileTime, $file;  # set the time stamp in the future
 
