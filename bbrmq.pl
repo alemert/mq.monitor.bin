@@ -228,7 +228,8 @@
 # 24.09.2020 2.13.01 am set combined attribute on ignore
 # 19.11.2020 2.13.02 am mqSDR type added
 # 05.05.2021 2.13.03 am keep only first element working solved
-# 10.06.2021 2.13.01 am BOQ for Back Out Queues introduced
+# 10.06.2021 2.13.04 am BOQ for Back Out Queues introduced
+# 10.08.2021 2.13.05 ef runmqsc path moved to 923
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -259,7 +260,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.13.03" ;
+my $VERSION = "2.13.05" ;
 
 ################################################################################
 #
@@ -327,7 +328,7 @@ my $levelFormat  = "|@>|";
 #
 ################################################################################
 my $cfg = "/home/mqm/monitor/ini/mqmon.ini" ;
-my $runmqsc = "/opt/mqm/90a/bin/runmqsc -e " ;
+my $runmqsc = "/opt/mqm/923/bin/runmqsc -e " ;
 my $patrol  = "/opt/Patrol/MSEND/PatrolEvent" ;
 
 my $_conn ;  # $_conn has to be global so it can be used in the signal handler
