@@ -230,6 +230,10 @@
 # 05.05.2021 2.13.03 am keep only first element working solved
 # 10.06.2021 2.13.04 am BOQ for Back Out Queues introduced
 # 10.08.2021 2.13.05 ef runmqsc path moved to 923
+# 20.10.2021 2.13.06 am no object found on zos handling adjusted
+#                       allow '.' (dot) in the application name / needed in ign
+#                       show application in the header of xymon output
+#
 #
 # BUGS:
 #   sub cmpTH: check eq and nq first, > and < after it.
@@ -260,7 +264,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.13.05" ;
+my $VERSION = "2.13.06" ;
 
 ################################################################################
 #
@@ -1103,7 +1107,12 @@ sub setTmpIgn
     }                                    #
     print "> ";                          #
     my @buff = split " ", <STDIN> ;      #
-    @attr=grep{exists $_attr->{$_}{monitor}}@buff;
+    foreach my $attr (@buff)
+    {
+      next unless exists $_attr->{$attr} ;
+      next unless exists $_attr->{$attr}{monitor} ;
+      push @attr, $attr ;
+    }
   }                                      #
   elsif( $gIgnAttr eq 'all' )            # ignore all monitored attributes 
   {                                      #
@@ -1319,7 +1328,7 @@ sub getTmpIgn
 
   foreach my $file (readdir TMP)
   {
-    next unless $file =~ /^(\w+)-    # application
+    next unless $file =~ /^([\w\.]+)-    # application
                            (\w+)-    # queue manager
                            (\w+)-    # type
                            (\w+)-    # attribute 
@@ -2066,6 +2075,7 @@ sub getObjState
 
           unless( defined $_myState )
           {
+            warn "no object found for:\n\t$app\n\t$qmgr\n\t$type\n\t$parse\n" ;
             my $wr = $_conn->{$qmgr}{WR} ;
             my $rd = $_conn->{$qmgr}{RD} ;
             print $wr "end\n"  ;
@@ -2550,7 +2560,9 @@ sub parseMqsc
         last if $line =~ /^CSQ9022I\s+/; # NORMAL COMPLETION
         if( $line =~ /CSQM297I\s+/ )     # no items found matching request
         {                                #
-        # warn "$line\n" ;               #
+          next if $line =~ / NO CHSTATUS /;
+          next if $line =~ / NO QSTATUS /;
+          warn "$line\n" ;               #
           next ;                         #
         }                                #
         if( $line =~ /CSQ9006E\s+/ )     # 'QLOCAL' parameter uses asterisk (*)
@@ -3949,7 +3961,7 @@ sub printMsg
     if( exists $_app->{$app}{information} )               #
     {                                                     #
       $inf = "<table>" ;                                  #
-      $inf .= "<tr><td>project</td><td>$app</td></tr>\n"; #
+      $inf .= "<tr><td>application</td><td>$app</td></tr>\n"; #
       $inf .= "<tr><td>version</td><td>$VERSION</td></tr>\n"; 
       foreach my $key (sort keys %{$_app->{$app}{information}})  
       {                                                   #
