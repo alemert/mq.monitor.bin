@@ -233,6 +233,15 @@
 # 20.10.2021 2.13.06 am no object found on zos handling adjusted
 #                       allow '.' (dot) in the application name / needed in ign
 #                       show application in the header of xymon output
+# 26.11.2021 2.14.00 am - issues with strict hash-key handling in new 
+#                         perl version solved
+#                       - ini-dir and flag-dir changed 
+#                       - log-dir introduce
+#                       - type mqQLOCAL removed
+#  to be done:
+# remove mqQLOCAL
+# remove mqSDR
+# redesiegn PING
 #
 #
 # BUGS:
@@ -264,7 +273,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.13.06" ;
+my $VERSION = "2.14.00" ;
 
 ################################################################################
 #
@@ -312,8 +321,9 @@ my %LEV = ( $NA     => 'NA'   ,
             $FORMAT => 'ERR' );
 
 
-my $TMP = "/home/mqm/monitor/flag" ;
+my $TMP = "/home/mqmon/monitor/flag/mqmon" ;
 my $PCHTMP = $TMP.'/pingchl' ;
+my $LOG = "/home/mqmon/monitor/log/mqmon" ;
 my $MAIL_MAX_AGE =  2600000 ;  # app 1 Month
 
 my $DOWN    = -99 ;
@@ -331,7 +341,7 @@ my $levelFormat  = "|@>|";
 #   G L O B A L S  
 #
 ################################################################################
-my $cfg = "/home/mqm/monitor/ini/mqmon.ini" ;
+my $cfg = "/home/mqmon/monitor/ini/mqmon/mqmon.ini" ;
 my $runmqsc = "/opt/mqm/923/bin/runmqsc -e " ;
 my $patrol  = "/opt/Patrol/MSEND/PatrolEvent" ;
 
@@ -680,7 +690,7 @@ sub logger
   }
   my $line =  [caller(0)]->[2] ; 
 
-  $LF = $ENV{HOME}.'/monitor/log/bbrmq.'.$day.'.'.$$.'.log' ;
+  $LF = $LOG.'/bbrmq.'.$day.'.'.$$.'.log' ;
 
   open FD, ">>$LF" ;
 
@@ -714,7 +724,7 @@ sub logfdc
      $day =~ s/ /0/g;
      $time =~ s/ /0/g;
 
-  my $FDC = $ENV{HOME}.'/monitor/log/bbrmq.'.$day.'.'.$$.'.fdc' ;
+  my $FDC = $LOG.'/bbrmq.'.$day.'.'.$$.'.fdc' ;
 
   open FDC, ">>$FDC" ;
 
@@ -1116,7 +1126,7 @@ sub setTmpIgn
   }                                      #
   elsif( $gIgnAttr eq 'all' )            # ignore all monitored attributes 
   {                                      #
-    @attr=grep{exists $_attr->{$_}{level}} keys $_attr;
+    @attr=grep{exists $_attr->{$_}{level}} keys %{$_attr};
   }                                      #
   elsif( $gIgnAttr eq 'err' )            # ignore only error attributes
   {                                      #
@@ -1413,14 +1423,14 @@ sub mergeIgnEnb
       delete $_ign->{$app} if exists $_ign->{$app} ;
       return ;
     }
-    foreach my $qmgr ( keys $_enb->{$app} )
+    foreach my $qmgr ( keys %{$_enb->{$app}} )
     {
       if( exists $_enb->{$app}{$qmgr}{all} )
       {
         delete $_ign->{$app}{$qmgr} ;
         return ;
       }
-      foreach my $type ( keys $_enb->{$app}{$qmgr} )
+      foreach my $type ( keys %{$_enb->{$app}{$qmgr}} )
       {
         delete $_ign->{$app}{$qmgr}{$type} ;
       }
@@ -2101,7 +2111,7 @@ sub getObjState
         {
           foreach my $exclude (@{$_type->{$type}{exclude}} )
           {
-            foreach my $obj (keys $_state->{$app}{$qmgr}{$type})
+            foreach my $obj (keys %{$_state->{$app}{$qmgr}{$type}} )
             {
               delete $_state->{$app}{$qmgr}{$type}{$obj} if $obj =~ /$exclude/ ;
             }
@@ -2109,7 +2119,7 @@ sub getObjState
         }
         if( exists $_type->{$type}{keep} )
         {
-          foreach my $obj (keys $_state->{$app}{$qmgr}{$type})
+          foreach my $obj (keys %{$_state->{$app}{$qmgr}{$type}})
           {
             my $found = 0 ;
             foreach my $keep (@{$_type->{$type}{keep}} )
@@ -2311,7 +2321,6 @@ sub execMqsc
   #    QLOUT can be redirected to SYS-MQ view
   # --------------------------------------------------------
   if( $type eq 'QLOCAL'   ||
-      $type eq 'mqQLOCAL' ||
       $type eq 'INITQ'    ||
       $type eq 'BOQ'      ||
       $type eq 'DLQ'       )
@@ -2967,7 +2976,7 @@ sub evalStat
                 print "    obj  = $obj\n";           #
                 print "    attr = $attr\n";          #
               }                                      #
-              if( scalar keys $_mon > 0 )            #
+              if( scalar keys %{$_mon} > 0 )         #
               {                                      #
                 $_stAttr->{$attr}{monitor} = $_mon ; #
                 $_stAttr->{$attr}{level} = $levRc;   #
@@ -3105,7 +3114,7 @@ sub evalAttr
   my $cntFormat = 0 ;
 
   my $rcCnt=0;
-  foreach my $th (keys $_mon)
+  foreach my $th (keys %{$_mon})
   {
     next if $th eq 'default' ;
     my $rc = &cmpTH( $_attr, $th ) ;
@@ -4129,14 +4138,14 @@ sub printMsg
   # -------------------------------------------------------
   foreach my $host ( keys %xymMsg )                       # send a message
   {                                                       #  to xymon
-    foreach my $service ( keys $xymMsg{$host} )           #
+    foreach my $service ( keys %{$xymMsg{$host}} )        #
     {                                                     #
       my $msg = $xymMsg{$host}{$service}{msg};            #
       my $color = 'green' ;                               #
       $color = 'yellow' if $xymMsg{$host}{$service}{level} == $WAR;
       $color = 'red'    if $xymMsg{$host}{$service}{level} == $ERR;
-      $msg = "restart on ".hostname()." as user mqm\n".
-             "~mqm/monitor/bin/bbrmq.pl -restart\n\n".
+      $msg = "restart on ".hostname()." as user mqmon\n".
+             "~mqmon/monitor/bin/bbrmq.pl -restart\n\n".
              $xymMsg{$host}{$service}{inf}.
              $xymMsg{$host}{$service}{anchor}.$msg ;
       writeMsg $msg, $color, $host, $service ;            #
@@ -4644,7 +4653,7 @@ while( my $line=<$rd> )
   last if $line =~ /AMQ\d{4}\w?:/ ;
 }
 
-my @qmgrAlias = keys (disQmgrAlias( $rd, $wr, '*', 'UNIX' )); 
+my @qmgrAlias = keys %{ (disQmgrAlias( $rd, $wr, '*', 'UNIX' )) }; 
 
 print $wr "end\n";
 usleep 100000 ;
