@@ -238,6 +238,10 @@
 #                       - ini-dir and flag-dir changed 
 #                       - log-dir introduce
 #                       - type mqQLOCAL removed
+# 07.12.2021 2.14.01 am - sort types before sending to xymon (e.g. SDR always at
+#                         top of SVR)
+#                       - check if $_conn exists for $_cfg qmgr == is qmgr 
+#                         configured for connect
 #  to be done:
 # remove mqQLOCAL
 # remove mqSDR
@@ -273,7 +277,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.14.00" ;
+my $VERSION = "2.14.01" ;
 
 ################################################################################
 #
@@ -1835,6 +1839,7 @@ sub connQmgr
                                                     #
     foreach my $qmgr (keys %{$_cfg->{$app}{qmgr}})  #
     {                                               #
+      die "$qmgr not configured for connect\n" unless exists $_conn->{$qmgr} ;
       next unless $_conn->{$qmgr}{PID} == 0 ;       #
       if( exists $_conn->{$qmgr}{MQSERVER} )        #
       {                                             #
@@ -3982,7 +3987,7 @@ sub printMsg
     foreach my $qmgr (sort keys %{$_stat->{$app}} )       # qmgr level
     {                                                     #
       next unless exists $_app->{$app}{qmgr}{$qmgr};      #
-      foreach my $type (keys %{$_stat->{$app}{$qmgr}} )   # type level
+      foreach my $type (sort keys %{$_stat->{$app}{$qmgr}} ) # type level
       {                                                   #
         next unless exists $_app->{$app}                  # ignore application
                                   {qmgr}{$qmgr}           # whithout send/xymon
