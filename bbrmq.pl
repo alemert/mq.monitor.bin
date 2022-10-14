@@ -243,6 +243,8 @@
 #                       - check if $_conn exists for $_cfg qmgr == is qmgr 
 #                         configured for connect
 # 31.03.2022 2.14.02 am - calcRation 4th attribute RATIO-KEY introduced
+# 14.10.2022 2.15.00 am - merge with syspmq3 / automatic enable combSTATUS 
+#                         on until green
 #
 #  to be done:
 # remove mqQLOCAL
@@ -279,7 +281,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.14.01" ;
+my $VERSION = "2.15.00" ;
 
 ################################################################################
 #
@@ -3096,9 +3098,22 @@ sub evalStat
                     $err++   if $lev == $ERR;        #
                   }                                  #
                 }                                    #
+                if( exists $_stObj->{attr}{$cmb}{level}   &&
+                    $_stObj->{attr}{$cmb}{level} == $OK   &&
+                    exists $_stObj->{attr}{$cmb}{ignore}  &&
+                     $_stObj->{attr}{$cmb}{ignore} == $TIG )
+                {
+                  my $file = "$TMP/$app-$qmgr-$type-$cmb-$obj" ;
+                  if( -f $file )
+                  {
+                    my $fileAge = (stat $file)[9] ;
+                    unlink $file if $fileAge < 10 ;
+                  }
+                }
               }                                      #
             }                                        #
                                                      #
+                                         #
             $_stObj->{level}=$OK;                    #
             $_stObj->{level}=$TIG if $tig > 0 ;      #
             $_stObj->{level}=$IGN if $ign > 0 ;      #
