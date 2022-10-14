@@ -242,6 +242,8 @@
 #                         top of SVR)
 #                       - check if $_conn exists for $_cfg qmgr == is qmgr 
 #                         configured for connect
+# 31.03.2022 2.14.02 am - calcRation 4th attribute RATIO-KEY introduced
+#
 #  to be done:
 # remove mqQLOCAL
 # remove mqSDR
@@ -2338,7 +2340,10 @@ sub execMqsc
 
      $_obj = &joinQlstat($_ql, $_qs);
 
-     &calcRatio( $_obj, "CURDEPTH", "MAXDEPTH" );
+     &calcRatio( $_obj, "CURDEPTH", "MAXDEPTH", "CURDERATIO" );
+
+  #  &setMaxFS( $_obj, 2048 );
+     &calcRatio( $_obj, "CURFSIZE", "CURMAXFS", "CURFSRATIO" );
   }
   # --------------------------------------------------------
   # XMIT
@@ -2353,7 +2358,10 @@ sub execMqsc
 
      $_obj = &joinQlstat($_ql, $_qs);
 
-     &calcRatio( $_obj, "CURDEPTH", "MAXDEPTH" );
+     &calcRatio( $_obj, "CURDEPTH", "MAXDEPTH", "CURDERATIO" );
+
+     &setMaxFS( $_obj, 2048 );
+     &calcRatio( $_obj, "CURFSIZE", "MAXFSIZE", "CURFSRATIO" );
   }
   # --------------------------------------------------------
   # SDR
@@ -3225,31 +3233,57 @@ sub cmpTH
 }
 
 ################################################################################
-# calculate ration
+# set max file size
+################################################################################
+sub setMaxFS
+{
+  my $_obj = $_[0] ;
+  my $max  = $_[1] ;
+
+  foreach my $obj (keys %$_obj)
+  {
+    foreach my $_inst (@{$_obj->{$obj}})
+    {
+      last unless $_inst->{MAXFSIZE}  ;
+      next unless $_inst->{MAXFSIZE} eq 'DEFAULT' ;
+
+      $_inst->{MAXFSIZE} = $max ;
+    }
+  }
+}
+
+################################################################################
+# calculate ratio
 ################################################################################
 sub calcRatio
 {
-  my $_obj      = $_[0];
-  my $numKey   = $_[1];   # numerator
-  my $denumKey = $_[2];   # denumerator
+  my $_obj     = $_[0] ;
+  my $numKey   = $_[1] ;   # numerator
+  my $denumKey = $_[2] ;   # denumerator
+  my $ratioKey = $_[3] ;
 
   foreach my $obj (keys %$_obj) 
   {
     foreach my $_inst (@{$_obj->{$obj}})
     {
+      # if MAXFS doesn't exists due to old version on the first queue
+      # then any other queue won't have MAXFS 
+      # then quite this function after first queue
+      return unless exists $_inst->{$denumKey}; 
+
       my $num   = $_inst->{$numKey}  ; 
       my $denum = $_inst->{$denumKey}; 
       if( $denum == 0 )
       {
-        $_inst->{RATIO} = 0;
+        $_inst->{$ratioKey} = 0;
         next;
       }
       if( $denum == $num )
       {
-        $_inst->{RATIO} = 100;
+        $_inst->{$ratioKey} = 100;
         next;
       }
-      $_inst->{RATIO} = int( $num*100/$denum);
+      $_inst->{$ratioKey} = int( $num*100/$denum);
     }
   }
 }
