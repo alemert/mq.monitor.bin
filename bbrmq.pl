@@ -245,6 +245,7 @@
 # 31.03.2022 2.14.02 am - calcRation 4th attribute RATIO-KEY introduced
 # 14.10.2022 2.15.00 am - merge with syspmq3 / automatic enable combSTATUS 
 #                         on until green
+# 19.10.2022 2.15.01 am - ignore empty keep and exclude object array
 #
 #  to be done:
 # remove mqQLOCAL
@@ -281,7 +282,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.15.00" ;
+my $VERSION = "2.15.01" ;
 
 ################################################################################
 #
@@ -2116,7 +2117,8 @@ sub getObjState
 
         last if $_conn->{$qmgr}{PID} == 0 ;
 
-        if( exists $_type->{$type}{exclude} )
+        if( exists $_type->{$type}{exclude} && 
+            ref $_type->{$type}{exclude} eq 'ARRAY'  )
         {
           foreach my $exclude (@{$_type->{$type}{exclude}} )
           {
@@ -2126,7 +2128,8 @@ sub getObjState
             }
           }
         }
-        if( exists $_type->{$type}{keep} )
+        if( exists $_type->{$type}{keep} &&
+            ref $_type->{$type}{keep} eq 'ARRAY'  )
         {
           foreach my $obj (keys %{$_state->{$app}{$qmgr}{$type}})
           {
