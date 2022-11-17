@@ -351,7 +351,7 @@ my $levelFormat  = "|@>|";
 #
 ################################################################################
 my $cfg = "/home/mqmon/monitor/ini/mqmon/mqmon.ini" ;
-my $runmqsc = "/opt/mqm/923/bin/runmqsc -e " ;
+my $runmqsc = "/usr/bin/runmqsc -e " ;
 my $patrol  = "/opt/Patrol/MSEND/PatrolEvent" ;
 
 my $_conn ;  # $_conn has to be global so it can be used in the signal handler
