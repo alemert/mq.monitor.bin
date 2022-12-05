@@ -341,6 +341,7 @@ my $STOP    = 1;
 my $RESTART = 2;
 my $IGNORE  = 3;
 my $ENABLE  = 4;
+my $DISABLE = 5;
 my $DBG     = 99;
 
 my $levelFormat  = "|@>|";
@@ -395,6 +396,9 @@ my $gEnbAppl = 'all' ;    # Enable all per default
 my $gEnbQmgr = 'all' ;    # Enable all per default
 my $gEnbType = 'all' ;    # Enable all per default
 my $gEnbTime = 3600  ;    # Default Enable is one hour
+
+my $gDsbQmgr ;
+my $gDsbTime ;
 
 my $argc = scalar @ARGV ;
 
@@ -453,9 +457,23 @@ while( defined $ARGV[0] )
   # --------------------------------------------------------  
   if( $opt eq 'enable' )
   {
-    &usage() if defined $mainAttr ;
+    &usage() if defined  $mainAttr ;
     $mainAttr = $opt ;
     $gRun = $ENABLE ;
+    shift @ARGV;
+    next ;
+  }
+
+  # --------------------------------------------------------  
+  # disable monitoring ( main attribute )
+  #   disable monitoring for only one queue manager 
+  #   avoiding timeouts if queue not accessable
+  # --------------------------------------------------------  
+  if( $opt eq 'disable' )
+  {
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt ;
+    $gRun = $DISABLE ;
     shift @ARGV;
     next ;
   }
@@ -514,6 +532,7 @@ while( defined $ARGV[0] )
   # --------------------------------------------------------  
   if( $opt eq 'dbg' )
   {
+    &usage() if defined $mainAttr ;
     $mainAttr = $opt;
     $gDbg = $DBG ;
     shift @ARGV;
@@ -657,8 +676,46 @@ while( defined $ARGV[0] )
     &usage();
   }
 
+  # --------------------------------------------------------  
+  # optional attributes with 
+  #   main attribute: disable
+  # --------------------------------------------------------  
+  if( $mainAttr eq 'disable' )
+  {
+    shift @ARGV ;
+
+    # ----------------------------------
+    # queue manager name
+    # ----------------------------------
+    if( $opt eq 'qmgr' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gDsbQmgr = $ARGV[0] ;
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
+    # queue manager name
+    # ----------------------------------
+    if( $opt eq 'time' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gDsbTime = $ARGV[0] ;
+      shift @ARGV ;
+      next;
+    }
+
+    # ----------------------------------
+    # all other -> print usage & quit
+    # ----------------------------------
+    &usage();
+  }
+
   &usage() ;
 }
+
+
 
 ################################################################################
 #
@@ -1335,6 +1392,19 @@ Enabling monitoring for:
 }
 
 ################################################################################
+# set temporary enable
+################################################################################
+sub setTmpDisable
+{
+    
+  my $file = $TMP.'/disable-'.$gDsbQmgr  ;
+  open FD, ">$file" ;                      #
+  close FD;                                #
+  $gDsbTime = 130100 if $gDsbTime > 130100 ;
+  utime time(), time() + $gDsbTime, $file; # set the time stamp in the future
+}
+
+################################################################################
 # get temporary ignore 
 ################################################################################
 sub getTmpIgn
@@ -1406,6 +1476,27 @@ sub getTmpEnb
   closedir TMP ;
 
   return $_enb ;
+}
+
+################################################################################
+# get temporary disable 
+#
+# rc:
+#   0 -> enabled 
+#   1 -> disabled
+################################################################################
+sub getTmpDsb
+{
+  my $qmgr = $_[0] ;
+  my $file = $TMP.'/disable-'.$qmgr ;
+
+  return 0 unless -f $file ;
+  
+  my $fileTime = (stat $file)[9] ;
+  return 1 if $fileTime < time() ;
+
+  unlink $file ;
+  return 0 ;
 }
 
 ################################################################################
@@ -1832,6 +1923,7 @@ sub connQmgr
     # ------------------------------------------------------
     foreach my $qmgr (keys %{$_cfg->{$app}{qmgr}})  # 
     {                                               # 
+#     next if getTmpDsb $qmgr  ;
       next if exists $_conn->{$qmgr};               # RegEx is not in conn Hash
       foreach my $alias ( @$_alias )                # check for every existing
       {                                             #  alias it fits RegEx
@@ -1844,6 +1936,7 @@ sub connQmgr
                                                     #
     foreach my $qmgr (keys %{$_cfg->{$app}{qmgr}})  #
     {                                               #
+#     next if getTmpDsb $qmgr  ;
       die "$qmgr not configured for connect\n" unless exists $_conn->{$qmgr} ;
       next unless $_conn->{$qmgr}{PID} == 0 ;       #
       if( exists $_conn->{$qmgr}{MQSERVER} )        #
@@ -2062,6 +2155,7 @@ sub getObjState
     next unless exists $_cfg->{$app}{qmgr} ;
     foreach my $qmgr (keys %{$_cfg->{$app}{qmgr}})
     {
+#     next if getTmpDsb $qmgr  ;
       next unless exists $_cfg->{$app}{qmgr}{$qmgr}{type} ;
       my $_type = $_cfg->{$app}{qmgr}{$qmgr}{type} ;
       next unless ref $_type eq 'HASH';
@@ -2937,6 +3031,7 @@ sub evalStat
     my $_stApp = $_stat->{$app};                     #
     foreach my $qmgr (keys %$_stApp )                # go through all
     {                                                #  queue manager
+#     next if getTmpDsb $qmgr  ;
       my $_stQmgr = $_stApp->{$qmgr};                #
       foreach my $type (keys %$_stQmgr )             # go through all
       {                                              #  object types
@@ -4038,6 +4133,7 @@ sub printMsg
     }                                                     #
     foreach my $qmgr (sort keys %{$_stat->{$app}} )       # qmgr level
     {                                                     #
+#     next if getTmpDsb $qmgr  ;
       next unless exists $_app->{$app}{qmgr}{$qmgr};      #
       foreach my $type (sort keys %{$_stat->{$app}{$qmgr}} ) # type level
       {                                                   #
@@ -4720,6 +4816,16 @@ unless( $pid == 0 )
 {
   waitpid $pid, &WNOHANG ;
   $pid = 0 ;
+}
+
+# ----------------------------------------------------------
+# disable single queue manager for monitoring
+# ----------------------------------------------------------
+if( $gRun == $DISABLE )
+{
+  my $match = grep { $_ eq $gDsbQmgr } @qmgrAlias ;
+  setTmpDisable ;
+  die "\n" ;
 }
 
 # ----------------------------------------------------------
