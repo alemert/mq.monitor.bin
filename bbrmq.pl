@@ -246,10 +246,10 @@
 # 14.10.2022 2.15.00 am - merge with syspmq3 / automatic enable combSTATUS 
 #                         on until green
 # 19.10.2022 2.15.01 am - ignore empty keep and exclude object array
+# 08.02.2022 2.16.00 am - type mqSDR  removed
+#                         sendMail CC & BCC added
 #
 #  to be done:
-# remove mqQLOCAL
-# remove mqSDR
 # redesiegn PING
 #
 #
@@ -282,7 +282,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.15.01" ;
+my $VERSION = "2.16.00" ;
 
 ################################################################################
 #
@@ -2466,7 +2466,6 @@ sub execMqsc
   # SDR
   # --------------------------------------------------------
   elsif( $type eq 'SDR'   ||
-         $type eq 'mqSDR' ||
          $type eq 'SVR'   ||
          $type eq 'RCVR'  ||
          $type eq 'RQSTR' )
@@ -4206,9 +4205,10 @@ sub printMsg
           {                                               #
             $mailMsg{$qmgr}{$type}{body} = $mailBody;     #
             $mailMsg{$qmgr}{$type}{subject} = $mailSub;   #
-            $mailMsg{$qmgr}{$type}{address}=$_app->{$app}{qmgr}{$qmgr}
-                                                         {type}{$type}
-                                                         {send}{mail}{address};
+            $mailMsg{$qmgr}{$type}{app} = $app ;
+       #    $mailMsg{$qmgr}{$type}{address}=$_app->{$app}{qmgr}{$qmgr}
+       #                                                 {type}{$type}
+       #                                                 {send}{mail}{address};
             $mailMsg{$qmgr}{$type}{appl} = $app ;         #
           }                                               #
         }                                                 #
@@ -4312,11 +4312,16 @@ sub printMsg
   {
     foreach my $type ( keys %{$mailMsg{$qmgr}} )
     {
+      my $app = $mailMsg{$qmgr}{$type}{app};
+
       &sendMail( $mailMsg{$qmgr}{$type}{body}    ,
-                 $mailMsg{$qmgr}{$type}{subject} ,
-                 $mailMsg{$qmgr}{$type}{address} ,
+                 $_app->{$app}{qmgr}{$qmgr}{type}{$type}{send},
                  $mailMsg{$qmgr}{$type}{appl}    ,
                  $qmgr, $type );
+
+       #    $mailMsg{$qmgr}{$type}{address}=$_app->{$app}{qmgr}{$qmgr}
+       #                                                 {type}{$type}
+       #                                                 {send}{mail}{address};
     } 
   }
   # -------------------------------------------------------
@@ -4574,16 +4579,20 @@ sub mailMsg
 }
 
 ################################################################################
-#
+# send mail / mailx
 ################################################################################
 sub sendMail
 {
   my $body    = $_[0] ;
-  my $subject = $_[1] ;
-  my $address = $_[2] ;
-  my $appl    = $_[3] ;
-  my $qmgr    = $_[4];
-  my $type    = $_[5];
+  my $_send   = $_[1] ; 
+  my $appl    = $_[2] ;
+  my $qmgr    = $_[3];
+  my $type    = $_[4];
+
+  my $options = "-s \"Error $appl on $qmgr for $type\" "; 
+#    $options = "-c $a
+  my $address = $_send->{mail}{address} ;
+  my $xymURL  = "https://zxymon1.deutsche-boerse.de/xymon-cgi/svcstatus.sh?HOST=".$_send->{xymon}{host}."&SERVICE=".$_send->{xymon}{service};
 
   # tests to be done
   # 24 h test
@@ -4645,13 +4654,15 @@ sub sendMail
     }
   }
  
-  open MAIL, "|mailx -s \"$subject\" $address" ; 
+# open MAIL, "|mailx -s \"$subject\" $address" ; 
+  open MAIL, "|mailx $options $address" ; 
   open TMP, ">$file" ;
   foreach my $line (@body)
   {
     print MAIL "$line\n\n";
     print TMP  "$line\n";
   }
+  print MAIL "\n$xymURL\n" ;
   close MAIL ;
   close TMP ;
 }
