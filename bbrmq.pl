@@ -4314,14 +4314,9 @@ sub printMsg
     {
       my $app = $mailMsg{$qmgr}{$type}{app};
 
-      &sendMail( $mailMsg{$qmgr}{$type}{body}    ,
-                 $_app->{$app}{qmgr}{$qmgr}{type}{$type}{send},
-                 $mailMsg{$qmgr}{$type}{appl}    ,
-                 $qmgr, $type );
-
-       #    $mailMsg{$qmgr}{$type}{address}=$_app->{$app}{qmgr}{$qmgr}
-       #                                                 {type}{$type}
-       #                                                 {send}{mail}{address};
+      &sendMail( $mailMsg{$qmgr}{$type}{body}                  ,
+                 $_app->{$app}{qmgr}{$qmgr}{type}{$type}{send} ,
+                 $app, $qmgr, $type                           );
     } 
   }
   # -------------------------------------------------------
@@ -4589,9 +4584,12 @@ sub sendMail
   my $qmgr    = $_[3];
   my $type    = $_[4];
 
-  my $options = "-s \"Error $appl on $qmgr for $type\" "; 
-#    $options = "-c $a
-  my $address = $_send->{mail}{address} ;
+  my $options  = "-s \"Error $appl on $qmgr for $type\" "; 
+     $options .= "-c $_send->{mail}{cc} " if exists $_send->{mail}{cc} ;
+     $options .= "-b $_send->{mail}{bcc} " if exists $_send->{mail}{bcc} ;
+     $options .= "-r dont.reply\@deutsche-boerse.mq " ;
+  my $address = " " ;
+     $address = $_send->{mail}{address} if exists $_send->{mail}{address} ;
   my $xymURL  = "https://zxymon1.deutsche-boerse.de/xymon-cgi/svcstatus.sh?HOST=".$_send->{xymon}{host}."&SERVICE=".$_send->{xymon}{service};
 
   # tests to be done
@@ -4655,7 +4653,7 @@ sub sendMail
   }
  
 # open MAIL, "|mailx -s \"$subject\" $address" ; 
-  open MAIL, "|mailx $options $address" ; 
+  open MAIL, "|mailx $options $address " ;
   open TMP, ">$file" ;
   foreach my $line (@body)
   {
