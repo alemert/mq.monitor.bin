@@ -1904,6 +1904,16 @@ sub mergeHash
 }
 
 ################################################################################
+# chack the configuration on logical errors
+################################################################################
+sub checkCfg
+{
+  my $_cfg = $_[0] ;
+
+  print ref $_cfg ;
+}
+
+################################################################################
 # connenct to all queue manager
 ################################################################################
 sub connQmgr
@@ -4662,8 +4672,6 @@ sub sendMail
   }
   print MAIL "\n$xymURL\n" ;
   close MAIL ;
-  print "exe $1 \n" ;
-  print "que $1 \n" ;
   close TMP ;
 }
 
@@ -4795,6 +4803,8 @@ cleanUp();
 # ----------------------------------------------------------
 my $_cfg  = getCfg $cfg ;
 expandHash( $_cfg ); 
+
+checkCfg( $_cfg );
 
 # ----------------------------------------------------------
 # get all queue manager aliases from the local queue manager
