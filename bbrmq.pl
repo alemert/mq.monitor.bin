@@ -4662,8 +4662,8 @@ sub sendMail
   }
   print MAIL "\n$xymURL\n" ;
   close MAIL ;
-  print "exe $1 \n" ;
-  print "que $1 \n" ;
+  print "exe $? \n" ;
+  print "que $! \n" ;
   close TMP ;
 }
 
