@@ -75,6 +75,7 @@
 #    - expandHash      2.05.00
 #    - mergeHash       2.00.00
 #    - connQmgr        2.00.00
+#    - checkCfg        2.17.00
 #    - getPlatform     2.00.00
 #    - cfg2conn        2.00.00 
 #    - getObjState     2.00.00
@@ -248,6 +249,7 @@
 # 19.10.2022 2.15.01 am - ignore empty keep and exclude object array
 # 08.02.2022 2.16.00 am - type mqSDR  removed
 #                         sendMail CC & BCC added
+# 27.02.2022 2.17.00 am - checkCfg introduced
 #
 #  to be done:
 # redesiegn PING
@@ -1396,7 +1398,6 @@ Enabling monitoring for:
 ################################################################################
 sub setTmpDisable
 {
-    
   my $file = $TMP.'/disable-'.$gDsbQmgr  ;
   open FD, ">$file" ;                      #
   close FD;                                #
@@ -1411,7 +1412,7 @@ sub getTmpIgn
 {
   my $_ign ;
 
-  logger();
+# logger();
 
   opendir TMP, $TMP ;
 
@@ -1450,7 +1451,7 @@ sub getTmpEnb
 {
   my $_enb ;
 
-  logger() ;
+# logger() ;
 
   opendir TMP, $TMP ;
   
@@ -1908,9 +1909,38 @@ sub mergeHash
 ################################################################################
 sub checkCfg
 {
-  my $_cfg = $_[0] ;
+  my $_cfg = $_[0] ; shift @_ ;
+  my @gen  =  @_ ;
 
-  print ref $_cfg ;
+  if( ref $_cfg eq 'HASH' )
+  {
+    foreach my $key (keys %$_cfg)
+    {
+      unshift @gen, $key ;
+      &checkCfg( $_cfg->{$key}, @gen );
+    }
+  }
+  elsif( ref $_cfg eq 'ARRAY' )
+  {
+    
+  } 
+  else
+  {
+    if( $gen[1] eq 'mail' )
+    {
+      if( $gen[0] eq 'address' ||
+          $gen[0] eq 'cc'      ||
+          $gen[0] eq 'bcc'     )
+      {
+        my @email = split ",", $_cfg ;
+        foreach my $email ( @email )
+        {
+          die "unvalid email $email" unless $email =~ /^\w[\w,\.-]+@[\w-]+\.\w+$/ ;
+        }
+      }
+    }
+  }
+  
 }
 
 ################################################################################
@@ -2379,7 +2409,7 @@ sub shrinkAttr
   my $_glb = $_[0]->{global};
   my $_state = $_[1];
 
-  logger();
+# logger();
 
   foreach my $app (keys %$_state)
   {
@@ -2625,7 +2655,7 @@ sub parseMqsc
   my $obj   ;       # object name
   my $_objRef ;     # object array
 
-  logger();
+# logger();
 
   while( my $line=<$rd> )
   {
@@ -3033,7 +3063,7 @@ sub evalStat
   my $_ign  = $_[2] ;
   my $_enb  = $_[3] ;
 
-  logger();
+# logger();
 
   foreach my $app (keys %$_stat)                     # go through all
   {                                                  #  applications
@@ -4116,7 +4146,7 @@ sub printMsg
   my $_glb  = $_[1]->{global} ;
   my $_format = $_[2] ;
 
-  logger();
+# logger();
 
   my %xymMsg ;
   my %mailMsg ;
@@ -4588,6 +4618,8 @@ sub mailMsg
 ################################################################################
 sub sendMail
 {
+  logger() ;
+
   my $body    = $_[0] ;
   my $_send   = $_[1] ; 
   my $appl    = $_[2] ;
@@ -4672,8 +4704,7 @@ sub sendMail
   }
   print MAIL "\n$xymURL\n" ;
   close MAIL ;
-  print "exe $? \n" ;
-  print "que $! \n" ;
+  logfdc( $? ) ;
   close TMP ;
 }
 
