@@ -342,6 +342,7 @@ my $RESTART = 2;
 my $IGNORE  = 3;
 my $ENABLE  = 4;
 my $DISABLE = 5;
+my $CHECK   = 6;
 my $DBG     = 99;
 
 my $levelFormat  = "|@>|";
@@ -400,6 +401,8 @@ my $gEnbTime = 3600  ;    # Default Enable is one hour
 my $gDsbQmgr ;
 my $gDsbTime ;
 
+my $gChkIni ;
+
 my $argc = scalar @ARGV ;
 
 # ------------------------------------------------------------------------------
@@ -412,7 +415,7 @@ my $argc = scalar @ARGV ;
 # ------------------------------------------------------------------------------
 while( defined $ARGV[0] )
 {
-  my $opt ;
+  my $opt = '' ;
 
   # --------------------------------------------------------  
   #  opt starts with -  
@@ -535,6 +538,15 @@ while( defined $ARGV[0] )
     &usage() if defined $mainAttr ;
     $mainAttr = $opt;
     $gDbg = $DBG ;
+    shift @ARGV;
+    next ;
+  }
+
+  if( $opt eq 'check' )
+  {
+    &usage() if defined $mainAttr ;
+    $mainAttr = $opt;
+    $gRun = $CHECK ;
     shift @ARGV;
     next ;
   }
@@ -711,6 +723,27 @@ while( defined $ARGV[0] )
     # ----------------------------------
     &usage();
   }
+
+  # --------------------------------------------------------  
+  # optional attributes with 
+  #   main attribute: disable
+  # --------------------------------------------------------  
+  if( $mainAttr eq 'check' )
+  {
+    shift @ARGV ;
+
+    # ----------------------------------
+    # ini file path
+    # ----------------------------------
+    if( $opt eq 'ini' )
+    {
+      &usage() unless defined $ARGV[0] ;
+      $gChkIni = $ARGV[0] ;
+      shift @ARGV ;
+      next ;
+    }
+    &usage();
+  }     
 
   &usage() ;
 }
@@ -4766,6 +4799,11 @@ if( $gRun == $STOP )
 if( $gRun == $RESTART )
 {
   sendSigHup() ;
+}
+
+if( $gRun == $CHECK )
+{
+  $cfg = $gChkIni if defined $gChkIni ;
 }
 
 # ----------------------------------------------------------
