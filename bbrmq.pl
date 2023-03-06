@@ -250,6 +250,8 @@
 # 08.02.2022 2.16.00 am - type mqSDR  removed
 #                         sendMail CC & BCC added
 # 27.02.2022 2.17.00 am - checkCfg introduced
+# 01.03.2022 2.17.01 am - printHash level introduced
+#                       - ps command for stop comm replaced by args
 #
 #  to be done:
 # redesiegn PING
@@ -284,7 +286,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.17.00" ;
+my $VERSION = "2.17.01" ;
 
 ################################################################################
 #
@@ -891,7 +893,7 @@ sub newHash
 sub sendSigHup
 {
   logger();
-  foreach my $line (`ps --no-headers -e -o pid,fuid,comm`)
+  foreach my $line (`ps --no-headers -e -o pid,fuid,args`)
   {
     chomp $line ;
     $line =~ /^\s*(\d+)\s+(\d+)\s+(.+)$/;
@@ -1578,9 +1580,13 @@ sub mergeIgnEnb
 ################################################################################
 sub printHash
 {
-  my $_h = $_[0] ;
+  my $_h     = $_[0] ;
   my $offset = $_[1] ;
      $offset = 0 unless defined $offset ;
+  my $level  = $_[2] ;
+     $level  = 99 unless defined $level ;
+
+  return if $level == 0 ;
 
   unless( defined $_h )
   {
@@ -1611,7 +1617,7 @@ sub printHash
         }
         if( ref $val eq 'HASH' )
         {
-          &printHash( $val, $offset+1 );
+          &printHash( $val, $offset+1, $level-1 );
         }
 
       }
@@ -1622,7 +1628,7 @@ sub printHash
     if( ref $_h->{$key} eq 'HASH' )
     {
       print "$tab$key => \n" ;
-      &printHash( $_h->{$key}, $offset+1 );
+      &printHash( $_h->{$key}, $offset+1, $level -1 );
       next;
     }
 
@@ -4575,7 +4581,7 @@ sub xymonMsg
 }
 
 ################################################################################
-# build a xymon message
+# build a mail message
 ################################################################################
 sub mailMsg
 {
@@ -4935,6 +4941,9 @@ if( $gList == 1 )
   exit ;
 }
 
+################################################################################
+#   L O O P 
+################################################################################
 while( 1 )
 {
   $TIMEOUT = 0 ;
