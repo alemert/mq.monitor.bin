@@ -252,6 +252,10 @@
 # 27.02.2022 2.17.00 am - checkCfg introduced
 # 01.03.2022 2.17.01 am - printHash level introduced
 #                       - ps command for stop comm replaced by args
+# 07.03.2022 2.17.02 am - evalStat fix ignore on object level. tig and ign have
+#                         a higher level as early
+#                       - TIMEOUT vara removed and replaced by $timeA & timeD
+#                       - ps command catches only bbrmq and perl
 #
 #  to be done:
 # redesiegn PING
@@ -286,7 +290,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.17.01" ;
+my $VERSION = "2.17.02" ;
 
 ################################################################################
 #
@@ -361,8 +365,6 @@ my $runmqsc = "/usr/bin/runmqsc -e " ;
 my $patrol  = "/opt/Patrol/MSEND/PatrolEvent" ;
 
 my $_conn ;  # $_conn has to be global so it can be used in the signal handler
-
-my $TIMEOUT = 0;
 
 # ----------------------------------------------------------
 # logger
@@ -901,6 +903,7 @@ sub sendSigHup
     my $uid = $2;
     my $cmd = $3;
     next unless $cmd =~ /bbrmq.pl/ ;
+    next unless $cmd =~ /perl/ ;
     next if $pid == $$ ;
     print "$pid\t$uid\t$cmd\n";
     kill 'HUP', $pid ;
@@ -2088,7 +2091,6 @@ sub connQmgr
         $_conn->{$qmgr}{PID} = 0;                   #
         $_conn->{$qmgr}{RETRY}++ ;                  #
         usleep 100000 ;                             #
-        $TIMEOUT+=5;
       }                                             #
       $_conn->{$qmgr}{OS} = $platform;              #
     }
@@ -2411,7 +2413,7 @@ sub getObjState
           if( $_conn->{$qmgr}{OS} eq 'UNIX' )
           {
             sleep 60;
-            $TIMEOUT+=60;
+          # $TIMEOUT+=60; timeout vara removed in V 2.17.02
 
             my $wr = $_conn->{$qmgr}{WR} ;
             my $rd = $_conn->{$qmgr}{RD} ;
@@ -3291,9 +3293,9 @@ sub evalStat
                                                      #
                                          #
             $_stObj->{level}=$OK;                    #
+            $_stObj->{level}=$OK if $early > 0 ;     # show early as OK
             $_stObj->{level}=$TIG if $tig > 0 ;      #
             $_stObj->{level}=$IGN if $ign > 0 ;      #
-            $_stObj->{level}=$OK if $early > 0 ;     # show early as OK
             $_stObj->{level}=$WAR if $war > 0 ;      #
             $_stObj->{level}=$ERR if $err > 0 ;      #
           }
@@ -4944,9 +4946,11 @@ if( $gList == 1 )
 ################################################################################
 #   L O O P 
 ################################################################################
+my $SLEEP = 300 ;
 while( 1 )
 {
-  $TIMEOUT = 0 ;
+  my $timeA = time() ;
+
   connQmgr $_cfg, $_conn, \@qmgrAlias ;
   $_stat = getObjState $_cfg, $_conn ;
   shrinkAttr $_cfg, $_stat ;
@@ -4976,13 +4980,14 @@ while( 1 )
   mergeIgnEnb $_ign, $_enb ;
   evalStat  $_cfg, $_stat, $_ign, $_enb ;
   printMsg $_stat, $_cfg, $_format ;
-
+  
+  my $timeD = time() - $timeA ;
+  $timeD = 250 if( $timeD > 250 ) ;
   if( $gDbg == $DBG  )
   {
     sleep 5;
     next ;
   }
-  $TIMEOUT = 299 if $TIMEOUT > 280 ;  #  sleep time - timeout > 0
-  sleep (300-$TIMEOUT) ;
+  sleep ($SLEEP - $timeD ) ;
 }
 
