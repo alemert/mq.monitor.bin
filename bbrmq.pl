@@ -2508,7 +2508,6 @@ sub execMqsc
   # QL & DLQ & QLOUT
   # --------------------------------------------------------
   if( $type eq 'QLOCAL'   ||
-      $type eq 'XMITQ'    ||
       $type eq 'INITQ'    ||
       $type eq 'BOQ'      ||
       $type eq 'DLQ'       )
@@ -2796,14 +2795,14 @@ sub parseMqsc
         next ;                           #
       }                                  #
       $_objRef = ${$_obj->{$obj}}[-1] if exists $_obj->{$obj} ;
-      if( defined $value    &&
-          $value=~/(\w)\s*,\s*(\w+)/)  #
-      {
-        my $val1 = $1;
-        my $val2 = $2;
-        $_objRef->{$key.'1'} = $val1;
-        $_objRef->{$key.'2'} = $val2;
-      }
+      if( defined $value             &&  #
+          $value=~/(\w)\s*,\s*(\w+)/  )  #
+      {                                  #
+        my $val1 = $1;                   #
+        my $val2 = $2;                   #
+        $_objRef->{$key.'1'} = $val1;    #
+        $_objRef->{$key.'2'} = $val2;    #
+      }                                  #
       $_objRef->{$key} = $value ;        #
     }                                    #
   }                                      #
@@ -3295,7 +3294,6 @@ sub evalStat
               }                                      #
             }                                        #
                                                      #
-                                         #
             $_stObj->{level}=$OK;                    #
             $_stObj->{level}=$OK if $early > 0 ;     # show early as OK
             $_stObj->{level}=$TIG if $tig > 0 ;      #
@@ -3354,7 +3352,6 @@ sub evalAttr
     elsif( $_mon->{$th} eq 'war'   ) { $cntWar++  ; }
     elsif( $_mon->{$th} eq 'err'   ) { $cntErr++  ; }
   }
-  
   
   my $rc = $OK ;
   $rc = $WAR    if $cntWar    > 0;
@@ -3885,9 +3882,9 @@ sub getMonHash
     }                                                #
     else                                             # check every object 
     {                                                # configuration 
-      foreach my $regex (keys %{$_app->{qmgr}{$qmgr} # and check if it's a regex
-                                       {type}{$type} # and if it matches the
-                                       {obj}}      ) # actual object 
+      foreach my $regex (keys %{$_app->{qmgr}{$qmgr} # and check if it is a 
+                                       {type}{$type} # regex and if it matches 
+                                       {obj}}      ) # the actual object 
       {                                              #
         next unless $regex =~ /^\^.+\$$/ ;           # ignore all but regex
         my @found ;                                  # 
@@ -3926,12 +3923,12 @@ sub getMonHash
       if( exists $_obj->{monitor}  &&             #
           exists $_obj->{monitor}{time} )         #
       {                                           #
-        $rcAttrTime = $OK ;                         
+        $rcAttrTime = $OK ;                       #
         if( &checkMonTime($_obj->{monitor}{time}) # 
               == $OFF      )                      #
         {                                         #
           $rc = $IGN ;                            #
-          $rcAttrTime = $IGN ;                         
+          $rcAttrTime = $IGN ;                    #    
         }                                         #
         elsif( defined $_mon   &&                 #
                $_mon == $IGN   &&                 # if earlier set on ignore 
@@ -3956,7 +3953,7 @@ sub getMonHash
         {                                         #
           $monSet = 1 ;                           #
           $_mon = $_obj->{attr}{$attr}{monitor} ; #
-          $rc = $SHW ;
+          $rc = $SHW ;                            #
         }                                         #
         else                                      #
         {                                         #
@@ -3986,9 +3983,9 @@ sub getMonHash
           }                                       #
         }                                         #
         elsif( $rcAttrTime == $IGN )              #
-        {            #
+        {                                         #
           $rc=$IGN;                               #
-        }            #
+        }                                         #
         if( $rc ne $IGN )                         #
         {                                         #
           $rc = $SHW;                             #
@@ -4006,9 +4003,6 @@ sub getMonHash
     $_mon = $_monOld unless ref $_mon eq 'HASH'; 
   }
   return( $_mon,$rc) ;
- 
-# return ($_mon,undef) if ref $_mon eq 'HASH';
-# return ($_monOld,$_mon);
 }
 
 ################################################################################
