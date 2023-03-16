@@ -258,6 +258,7 @@
 #                       - ps command catches only bbrmq and perl
 # 13.03.2022 2.17.03 am - joinChStat, mqSVRCONN regex replaced by eq SVRCONN
 #                       - increase runmqsc timeout from 10 to 20
+#                       - call setMaxFS with 2088960 (2TGB)
 #
 #  to be done:
 # redesiegn PING
@@ -2522,7 +2523,7 @@ sub execMqsc
 
      &calcRatio( $_obj, "CURDEPTH", "MAXDEPTH", "CURDERATIO" );
 
-  #  &setMaxFS( $_obj, 2048 );
+     &setMaxFS( $_obj, 2088960 );  # 2TG
      &calcRatio( $_obj, "CURFSIZE", "CURMAXFS", "CURFSRATIO" );
   }
   # --------------------------------------------------------
@@ -2540,7 +2541,7 @@ sub execMqsc
 
      &calcRatio( $_obj, "CURDEPTH", "MAXDEPTH", "CURDERATIO" );
 
-#    &setMaxFS( $_obj, 2048 );
+     &setMaxFS( $_obj, 2088960 ); # 2TG
      &calcRatio( $_obj, "CURFSIZE", "MAXFSIZE", "CURFSRATIO" );
   }
   # --------------------------------------------------------
