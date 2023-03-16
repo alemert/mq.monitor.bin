@@ -21,6 +21,26 @@ foreach my $dir ( glob "$dfdir/*" )
   my $msg = "<table>\n";
   my $war = 0;
   my $err = 0;
+ 
+  my %TH = (
+    'data' => { 'war' => 60 ,
+                'err' => 85 , },
+    'log'  => { 'war' => 60 ,
+                'err' => 85 , },
+    'var'  => { 'war' => 60 ,
+                'err' => 85 , },
+  ); 
+
+  if( open TH, "$dir/df.th" )
+  {
+    foreach my $line (<TH>)
+    {
+      (my $id, my $warTH, my $errTH) = split " ", $line ;
+      $TH{$id}{war} = $warTH ;
+      $TH{$id}{err} = $errTH ;
+    }
+    close TH ;
+  }
   open DF, "$dir/df.stdout" ;
   foreach my $line (<DF>)
   {
@@ -32,15 +52,18 @@ foreach my $dir ( glob "$dfdir/*" )
     my $avail = $4 ;
     my $ratio = $5 ;
     my $mount = $6 ;
-    
+
+    (my $id = $mount ) =~ s/^\/(mq\/)?// ;
+    $id =~ s/\/\w+// ;
+
     my $realRatio = $used/$all*100 ;
     my $color = "&green" ;
-    if( $realRatio > 60 )
+    if( $realRatio > $TH{$id}{war} )
     {
       $war++;
       $color = "&yellow";
     }
-    if( $realRatio > 85 )
+    if( $realRatio > $TH{$id}{err} )
     {
       $err++;
       $color = "&red";

@@ -256,6 +256,8 @@
 #                         a higher level as early
 #                       - TIMEOUT vara removed and replaced by $timeA & timeD
 #                       - ps command catches only bbrmq and perl
+# 13.03.2022 2.17.03 am - joinChStat, mqSVRCONN regex replaced by eq SVRCONN
+#                       - increase runmqsc timeout from 10 to 20
 #
 #  to be done:
 # redesiegn PING
@@ -290,7 +292,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.17.02" ;
+my $VERSION = "2.17.03" ;
 
 ################################################################################
 #
@@ -2197,14 +2199,13 @@ sub cfg2conn
     }
     elsif( $_cfg->{$qmgr}{type} eq 'proxy' ) 
     {
-      $_conn->{$qmgr}{RUN} = $runmqsc.' -w 10 -m '.
+      $_conn->{$qmgr}{RUN} = $runmqsc.' -w 20 -m '.
                                       $_cfg->{$qmgr}{proxy}.
                                       ' '.$qmgr ;
     }
     elsif( $_cfg->{$qmgr}{type} eq 'zos' ) 
     {
-#     $_conn->{$qmgr}{RUN} = $runmqsc.' -w 10 -x '.$qmgr ;
-      $_conn->{$qmgr}{RUN} = $runmqsc.' -w 10 -x -m '.
+      $_conn->{$qmgr}{RUN} = $runmqsc.' -w 20 -x -m '.
                                       $_cfg->{$qmgr}{proxy}.
                                       ' '.$qmgr ;
     }
@@ -2505,9 +2506,9 @@ sub execMqsc
   my $_obj ;
   # --------------------------------------------------------
   # QL & DLQ & QLOUT
-  #    QLOUT can be redirected to SYS-MQ view
   # --------------------------------------------------------
   if( $type eq 'QLOCAL'   ||
+      $type eq 'XMITQ'    ||
       $type eq 'INITQ'    ||
       $type eq 'BOQ'      ||
       $type eq 'DLQ'       )
@@ -2540,7 +2541,7 @@ sub execMqsc
 
      &calcRatio( $_obj, "CURDEPTH", "MAXDEPTH", "CURDERATIO" );
 
-     &setMaxFS( $_obj, 2048 );
+#    &setMaxFS( $_obj, 2048 );
      &calcRatio( $_obj, "CURFSIZE", "MAXFSIZE", "CURFSRATIO" );
   }
   # --------------------------------------------------------
@@ -2563,7 +2564,7 @@ sub execMqsc
   # --------------------------------------------------------
   # CLIENT
   # --------------------------------------------------------
-  elsif( $type =~ /SVRCONN/ )
+  elsif( $type eq 'SVRCONN' )
   {
     my $_chl = disChl( $rd, $wr, 'SVRCONN', $obj, $os );
     return $_chl unless defined $_chl ;
@@ -2642,7 +2643,10 @@ sub joinChStat
 
   foreach my $c (keys %$_chl)
   {
-    $_inactive->{CURSHCNV} = 0  if @{$_chl->{$c}}[0]->{CHLTYPE} =~ /SVRCONN/; # handle SVRCONN and mqSVRCONN
+    warn "unexpected REF for $c" unless ref $_chl->{$c} eq 'ARRAY' ;
+    warn "unexpected struct for $c" unless exists @{$_chl->{$c}}[0]->{CHLTYPE} ;
+
+    $_inactive->{CURSHCNV} = 0  if @{$_chl->{$c}}[0]->{CHLTYPE} eq 'SVRCONN'; 
     unless( exists $_chs->{$c})
     {
       push @{$_chs->{$c}}, $_inactive ;
