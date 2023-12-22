@@ -1341,7 +1341,8 @@ sub setTmpIgn
     $epochIgnTime =0 ;                   #
   }                                      #
                                          #
-  my $whoIs = `who is $(tty)`;           #
+  my $tty = `tty`; chomp $tty ;          #
+  my $whoIs = `who is $tty`;             #
   foreach my $attr (@attr)               #
   {                                      # setup a temporary file name
     my $file = $TMP."/$gIgnAppl-$gIgnQmgr-$gIgnType-$attr-$gIgnObj"; 
