@@ -259,6 +259,7 @@
 # 13.03.2022 2.17.03 am - joinChStat, mqSVRCONN regex replaced by eq SVRCONN
 #                       - increase runmqsc timeout from 10 to 20
 #                       - call setMaxFS with 2088960 (2TGB)
+# 22.12.2023 2.17.04 am - who is functionality in setTmpIgn()
 #
 #  to be done:
 # redesiegn PING
@@ -293,7 +294,7 @@ use xymon ;
 
 use qmgr ;
 
-my $VERSION = "2.17.03" ;
+my $VERSION = "2.17.04" ;
 
 ################################################################################
 #
@@ -1340,10 +1341,12 @@ sub setTmpIgn
     $epochIgnTime =0 ;                   #
   }                                      #
                                          #
+  my $whoIs = `who is $(tty)`;           #
   foreach my $attr (@attr)               #
   {                                      # setup a temporary file name
     my $file = $TMP."/$gIgnAppl-$gIgnQmgr-$gIgnType-$attr-$gIgnObj"; 
     open FD, ">$file";                   #
+    print FD $whoIs ;                    #
     close FD;                            #
     utime time(), $epochIgnTime, $file;  # set the time stamp in the future
   }                                      #
