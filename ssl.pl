@@ -24,8 +24,8 @@ my %MONTH ;
    $MONTH{November}  = 10 ;
    $MONTH{December}  = 11 ;
 
-my $WAR = 53 ;
-my $ERR = 32 ;
+my $WAR = 42 ;
+my $ERR = 21 ;
 
 my $ssldir = "/var//data/ssl" ;
 
